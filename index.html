@@ -82,6 +82,7 @@
   button:disabled{opacity:.35;}
   button .k{font-size:11px; display:block; opacity:.55; line-height:1.2; font-weight:700;}
   #lock.on{background:#ff5a5a; color:#fff;}
+  #rec.on{background:#e01e5a; color:#fff;}
   body.locked #bar button:not(#lock){opacity:.3; pointer-events:none;}
 
   /* ===== 鍵盤 ===== */
@@ -183,6 +184,7 @@
   <button id="inst"><span class="lbl"><span class="k">がっき</span>ピアノ</span></button>
   <button id="names"><span class="lbl"><span class="k">なまえ</span>ひらがな</span></button>
   <button id="song"><span class="lbl"><span class="k">おてほん</span>なし</span></button>
+  <button id="rec"><span class="lbl"><span class="k">じぶんの きょく</span>ろくおん</span></button>
   <button id="lock" class="icon" aria-label="ボタンを ロック"><span class="lbl">🔒</span></button>
   <button id="full" class="icon" aria-label="ぜんがめん"><span class="lbl">⛶</span></button>
 </div>
@@ -225,6 +227,17 @@ const state = {
  */
 const SONGS = [
   {name:'なし', notes:[]},
+  {name:'きらきらぼし', notes:[
+    0,0,7,7,9,9,7,   5,5,4,4,2,2,0,
+    7,7,5,5,4,4,2,   7,7,5,5,4,4,2,
+    0,0,7,7,9,9,7,   5,5,4,4,2,2,0
+  ]},
+  {name:'かえるのうた', notes:[
+    0,2,4,5,4,2,0,
+    4,5,7,9,7,5,4,
+    0,0,0,0,
+    0,0,2,2,4,4,5,5,4,2,0
+  ]},
   {name:'ちょうちょ', notes:[
     // ちょうちょう ちょうちょう / なのはに とまれ
     7,4,4,  5,2,2,  0,2,4,5,7,7,7,
@@ -234,20 +247,24 @@ const SONGS = [
     2,2,2,2,  2,4,5,   4,4,4,4,  4,5,7,
     // とまれよ あそべ / あそべよ とまれ
     7,4,4,  5,2,2,  0,4,7,7,4
-  ]}
+  ]},
+  // じぶんで ひいて ろくおん した きょく（ろくおん ボタン で つくる）
+  {name:'じぶん', notes:[], mine:true}
 ];
-let songPos = 0;
+const MY_SONG = SONGS.length - 1;
+let songPos   = 0;
+let recording = false;
 
 /* つぎに おす けん（MIDI ばんごう）。おてほん が なし なら null */
 function nextNote(){
   const song = SONGS[state.song];
-  if(!song || !song.notes.length) return null;
+  if(recording || !song || !song.notes.length) return null;
   return 12 * (state.baseOctave + 1) + song.notes[songPos];
 }
 
 /* このファイルの ばんごう。けんばん の ひだりした に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v16';
+const VERSION = 'v17';
 
 /* ================================================================== *
  * おとの エンジン
@@ -626,6 +643,13 @@ function press(id, midi){
   if(el){ el.classList.add('on'); spark(el); }
   noteOn(midi);
 
+  // ろくおん ちゅう は、おした けん を じゅんばんに おぼえる
+  if(recording){
+    SONGS[MY_SONG].notes.push(midi - 12 * (state.baseOctave + 1));
+    updateRecLabel();
+    return;
+  }
+
   // おてほん：マークの けん を おせたら つぎへ すすむ
   if(midi === nextNote()){
     songPos++;
@@ -686,6 +710,8 @@ function refresh(){
   lbl('inst',     '<span class="k">がっき</span>' + INSTS[state.inst]);
   lbl('names',    '<span class="k">なまえ</span>' + ['ひらがな','ABC','なし'][state.names]);
   lbl('song',     '<span class="k">おてほん</span>' + SONGS[state.song].name);
+  updateRecLabel();
+  $('rec').classList.toggle('on', recording);
   document.body.classList.toggle('names-off', state.names === 2);
   $('octMinus').disabled = state.baseOctave <= 1;
   $('octPlus').disabled  = state.baseOctave + state.octaves >= 8;
@@ -700,7 +726,28 @@ $('octPlus').onclick  = () => { if(state.baseOctave + state.octaves < 8){ state.
 $('inst').onclick     = () => { allOff(); state.inst = (state.inst + 1) % INSTS.length; unlock(); refresh(); };
 $('names').onclick    = () => { state.names = (state.names + 1) % 3; refresh(); };
 $('song').onclick     = () => { state.song = (state.song + 1) % SONGS.length;
-                                songPos = 0; refresh(); };
+                                songPos = 0; stopRec(); refresh(); };
+$('rec').onclick      = () => {
+  if(recording){ stopRec(); }
+  else{
+    state.song = MY_SONG;              // ろくおん さきは「じぶん」
+    SONGS[MY_SONG].notes.length = 0;   // まえの ろくおん は けす
+    songPos = 0;
+    recording = true;
+  }
+  refresh();
+};
+
+function stopRec(){
+  if(!recording) return;
+  recording = false;
+  songPos = 0;
+  save();
+}
+function updateRecLabel(){
+  $('rec').querySelector('.lbl').innerHTML =
+    '<span class="k">じぶんの きょく</span>' + (recording ? 'とめる ' + SONGS[MY_SONG].notes.length : 'ろくおん');
+}
 $('lock').onclick     = () => { state.locked = !state.locked;
                                 $('lock').classList.toggle('on', state.locked);
                                 $('lock').querySelector('.lbl').textContent = state.locked ? '🔓' : '🔒';
@@ -719,11 +766,16 @@ if(!(document.documentElement.requestFullscreen || document.documentElement.webk
 
 function save(){
   try{ localStorage.setItem('doremi', JSON.stringify(
-    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names, song:state.song})); }catch(e){}
+    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names,
+     song:state.song, mine:SONGS[MY_SONG].notes})); }catch(e){}
 }
 try{
   const s = JSON.parse(localStorage.getItem('doremi') || 'null');
-  if(s) Object.assign(state, s);
+  if(s){
+    if(Array.isArray(s.mine)) SONGS[MY_SONG].notes = s.mine.slice();
+    delete s.mine;
+    Object.assign(state, s);
+  }
 }catch(e){}
 
 let rt;
