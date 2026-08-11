@@ -49,15 +49,23 @@
     height:100%;
   }
   button{
+    position:relative;
     font:inherit; font-weight:700; font-size:17px;
     color:var(--text); background:var(--ui);
     border:none; border-radius:12px;
     flex:1 1 0;                      /* うえした いっぱい に ひろげる */
-    width:100%; min-height:48px; padding:4px;
+    width:100%; min-height:48px; padding:0;
     box-shadow:0 3px 0 rgba(0,0,0,.16);
-    white-space:nowrap; overflow:hidden;
+    overflow:hidden;
   }
   button.icon{flex:0.6 1 0; font-size:20px;}
+  /* もじを 90ど ひだり に まわす。ほんたい を とけい まわり に たおすと まっすぐ よめる */
+  button > .lbl{
+    position:absolute; left:50%; top:50%;
+    transform:translate(-50%,-50%) rotate(-90deg);
+    white-space:nowrap; line-height:1.15;
+    text-align:center;
+  }
   button:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.16);}
   button:disabled{opacity:.35;}
   button .k{font-size:11px; display:block; opacity:.55; line-height:1.2; font-weight:700;}
@@ -97,7 +105,7 @@
   .black.on{background:#5c5c5c; transform:scaleY(.94);}
 
   /* ラベル（かお + まる） */
-  .face{flex:0 0 auto; pointer-events:none;}
+  .face{flex:0 0 auto; pointer-events:none; transform:rotate(-90deg);}
   .badge{
     flex:0 0 auto; pointer-events:none;
     display:flex; align-items:center; justify-content:center;
@@ -106,13 +114,15 @@
     letter-spacing:-.04em;
     box-shadow:inset 0 -2px 0 rgba(0,0,0,.12);
   }
+  .badge > span{transform:rotate(-90deg);}
   body.names-off .face, body.names-off .badge{display:none;}
 
   /* バージョン（キャッシュで ふるい ものを みて いない か たしかめる ため） */
   #ver{
     position:absolute; z-index:8; pointer-events:none;
-    left:8px; top:5px;
+    left:5px; bottom:6px;
     font-size:12px; font-weight:700; color:#bbb;
+    transform:rotate(-90deg); transform-origin:left bottom;
   }
 
   /* とんでいく♪ */
@@ -131,13 +141,13 @@
 
 <div id="app">
 <div id="bar">
-  <button id="octMinus" aria-label="ひくい おと">◀ ひくい</button>
-  <button id="octCount"><span class="k">おとのかず</span>2オクターブ</button>
-  <button id="octPlus" aria-label="たかい おと">たかい ▶</button>
-  <button id="inst"><span class="k">がっき</span>ピアノ</button>
-  <button id="names"><span class="k">なまえ</span>ひらがな</button>
-  <button id="lock" class="icon" aria-label="ボタンを ロック">🔒</button>
-  <button id="full" class="icon" aria-label="ぜんがめん">⛶</button>
+  <button id="octMinus" aria-label="ひくい おと"><span class="lbl">◀ ひくい</span></button>
+  <button id="octCount"><span class="lbl"><span class="k">おとのかず</span>2オクターブ</span></button>
+  <button id="octPlus" aria-label="たかい おと"><span class="lbl">たかい ▶</span></button>
+  <button id="inst"><span class="lbl"><span class="k">がっき</span>ピアノ</span></button>
+  <button id="names"><span class="lbl"><span class="k">なまえ</span>ひらがな</span></button>
+  <button id="lock" class="icon" aria-label="ボタンを ロック"><span class="lbl">🔒</span></button>
+  <button id="full" class="icon" aria-label="ぜんがめん"><span class="lbl">⛶</span></button>
 </div>
 
 <div id="piano"></div>
@@ -173,13 +183,14 @@ const state = {
 
 /* このファイルの ばんごう。がめん ひだりうえ に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v10';
+const VERSION = 'v11';
 
 /* ================================================================== *
- * おとの エンジン（MIDI の ような でんしおん）
- *   ・すべて サイン波。ノコギリ波の ような「ブー」と いう にごり が でない
- *   ・きほんの おと は ながく のこし、たかい ばいおん だけ すぐ きえる ように する。
- *     これで「ピン」と いう あたま の ある おと に なる
+ * おとの エンジン（FM がっせい）
+ *   ・サイン波の しゅうはすう を べつの サイン波 で ゆらして おとを つくる
+ *   ・ゆらし を すぐ おさめる と「ピン」と いう あたま に なり、
+ *     そのあと ながく のびる ほんたい が のこる
+ *   ・ゆびを はなしても（オルガン いがいは）さいごまで なりきる
  * ================================================================== */
 let ctx = null, bus = null, master = null;
 
@@ -216,85 +227,131 @@ function unlock(){
 }
 
 /* ---- がっき ----
- * parts の 1つ 1つ が サイン波。[ばいすう, おおきさ, きえるまでの びょうすう]
- * きほんの おと（ばいすう 1）だけ ながく のこして、うえの ばいおん は
- * すぐ きえる ように すると「ピン」と いう おと に なる。
- * dec が 0 の ものは、おしている あいだ ずっと なりつづける。
+ * FM（しゅうはすう へんちょう）で おとを つくる。
+ * キャリア（きこえる サイン波）の しゅうはすう を、モジュレーター（もう1つの
+ * サイン波）で ゆらす と、ゆらし かた しだいで ベル にも ピアノ にも なる。
+ *   ratio … キャリア に たいする モジュレーター の しゅうはすう の ひ
+ *   index … ゆらし の つよさ（おおきい ほど ばいおん が ふえる）
+ *   idec  … ゆらし が おさまる までの びょうすう（みじかい ほど「ピン」）
+ * dec … おとが きえる までの びょうすう（まんなかの ド の とき）
  */
 const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
 const VOICE = [
-  { parts:[[1, 1, 1.5], [2, 0.35, 0.50], [4, 0.30, 0.16], [8, 0.16, 0.07], [12, 0.07, 0.04]],  // でんしピアノ（ピン）
-    atk:0.003, decSlope:30, hold:false, rel:0.08, level:1.30 },
-  { parts:[[1, 1, 0], [2, 0.50, 0], [4, 0.25, 0], [8, 0.10, 0]],              // オルガン
-    atk:0.020, decSlope:0,  hold:true,  rel:0.08, level:0.52 },
-  { parts:[[1, 1, 2.2], [3, 0.45, 0.8], [5.4, 0.22, 0.3], [8.2, 0.08, 0.12]], // ベル（チーン）
-    atk:0.002, decSlope:26, hold:false, rel:0.25, level:1.00 },
-  { parts:[[1, 1, 0.5], [4, 0.32, 0.10], [10, 0.10, 0.04]],                   // マリンバ（ポン）
-    atk:0.002, decSlope:24, hold:false, rel:0.07, level:1.65 }
+  { // でんしピアノ：かねの ような あたま ＋ ながく のびる ほんたい
+    fm:[{ratio:1, index:2.6, idec:0.45}, {ratio:14, index:1.2, idec:0.05}],
+    dec:6.0, decSlope:26, atk:0.004, hold:false, level:0.78 },
+  { // オルガン：おしている あいだ ずっと なる（FM なし・サイン波を かさねる）
+    parts:[[1,1],[2,0.5],[4,0.25],[8,0.10]],
+    dec:0, decSlope:0, atk:0.020, hold:true, rel:0.08, level:0.47 },
+  { // ベル
+    fm:[{ratio:3.5, index:3.2, idec:1.0}],
+    dec:5.0, decSlope:24, atk:0.002, hold:false, level:0.70 },
+  { // マリンバ
+    fm:[{ratio:4, index:1.8, idec:0.07}],
+    dec:1.6, decSlope:22, atk:0.002, hold:false, level:1.15 }
 ];
 
-const voices = new Map();     // midi -> voice
-const MAX_VOICES = 14;
+const voices  = new Map();    // midi -> いま おされて いる おと
+const ringing = [];           // ゆびを はなした あと、まだ なりつづけて いる おと
+const MAX_SOUNDS = 18;
+
+function fade(v, sec){
+  const c = audio(), t = c.currentTime;
+  try{
+    if(v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(t);
+    else v.g.gain.cancelScheduledValues(t);
+    v.g.gain.setTargetAtTime(0.0001, t, Math.max(sec, 0.01) / 3);
+  }catch(e){}
+  v.oscs.forEach(o => { try{ o.stop(t + sec + 0.05); }catch(e){} });
+  const i = ringing.indexOf(v);
+  if(i >= 0) ringing.splice(i, 1);
+}
 
 function noteOn(midi){
   const c = audio();
   if(c.state === 'suspended') c.resume();
-  if(voices.has(midi)) noteOff(midi, 0.02);
-  if(voices.size >= MAX_VOICES) noteOff(voices.keys().next().value, 0.05);
+
+  // おなじ けん を もう いちど おしたら、まえの おとは すばやく けす
+  if(voices.has(midi)){ fade(voices.get(midi), 0.03); voices.delete(midi); }
+  for(let i = ringing.length - 1; i >= 0; i--)
+    if(ringing[i].midi === midi) fade(ringing[i], 0.03);
+  while(voices.size + ringing.length >= MAX_SOUNDS && ringing.length) fade(ringing[0], 0.05);
 
   const v = VOICE[state.inst];
   const t = c.currentTime + 0.002;
   const f = freqOf(midi);
-  const sum = v.parts.reduce((a, p) => a + p[1], 0);
 
   const g = c.createGain();
-  g.gain.setValueAtTime(0.55 * v.level / sum * Math.pow(2, -(midi - 60) / 60), t);
+  g.gain.setValueAtTime(0.0001, t);
   g.connect(bus);
 
-  // ひくい おと ほど ながく のびる
-  const scale = v.hold ? 1 : Math.pow(2, -(midi - 60) / v.decSlope);
-  let last = 0;
+  const oscs = [];
+  let end;
 
-  const oscs = v.parts.map(([ratio, amp, dec]) => {
-    const o  = c.createOscillator();
-    const pg = c.createGain();
-    o.type = 'sine';                       // サイン波 だけ ＝ にごらない
-    o.frequency.setValueAtTime(f * ratio, t);
-    pg.gain.setValueAtTime(0.0001, t);
-    pg.gain.linearRampToValueAtTime(amp, t + v.atk);
-    let end;
-    if(v.hold || dec === 0){
-      end = t + 3600;
-    }else{
-      const d = clamp(dec * scale, 0.03, 6);
-      pg.gain.exponentialRampToValueAtTime(0.0001, t + v.atk + d);
-      end = t + v.atk + d + 0.05;
-      if(d > last) last = d;
-    }
-    o.connect(pg); pg.connect(g);
-    o.start(t); o.stop(end);
-    return o;
-  });
+  if(v.hold){                       // ---- オルガン（かさん合成）----
+    const sum = v.parts.reduce((a, p) => a + p[1], 0);
+    const peak = 0.55 * v.level / sum * Math.pow(2, -(midi - 60) / 60);
+    g.gain.linearRampToValueAtTime(peak, t + v.atk);
+    end = t + 3600;
+    v.parts.forEach(([ratio, amp]) => {
+      const o = c.createOscillator(), pg = c.createGain();
+      o.type = 'sine'; o.frequency.setValueAtTime(f * ratio, t);
+      pg.gain.setValueAtTime(amp, t);
+      o.connect(pg); pg.connect(g);
+      o.start(t); o.stop(end);
+      oscs.push(o);
+    });
+  }else{                            // ---- FM の がっき ----
+    const dec  = clamp(v.dec * Math.pow(2, -(midi - 60) / v.decSlope), 0.3, 9);
+    const peak = 0.42 * v.level * Math.pow(2, -(midi - 60) / 60);
+    g.gain.linearRampToValueAtTime(peak, t + v.atk);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + v.atk + dec);
+    end = t + v.atk + dec + 0.05;
 
-  voices.set(midi, {g:g, oscs:oscs, rel:v.rel});
+    const carrier = c.createOscillator();
+    carrier.type = 'sine';
+    carrier.frequency.setValueAtTime(f, t);
+
+    v.fm.forEach(m => {
+      const mod = c.createOscillator(), mg = c.createGain();
+      mod.type = 'sine';
+      mod.frequency.setValueAtTime(f * m.ratio, t);
+      // ゆらし の おおきさ は「しゅうはすう を なんHz うごかすか」で きめる
+      const dev = m.index * f * m.ratio;
+      mg.gain.setValueAtTime(dev, t);
+      mg.gain.exponentialRampToValueAtTime(Math.max(dev * 0.002, 1), t + m.idec);
+      mod.connect(mg); mg.connect(carrier.frequency);
+      mod.start(t); mod.stop(end);
+      oscs.push(mod);
+    });
+
+    carrier.connect(g);
+    carrier.start(t); carrier.stop(end);
+    oscs.push(carrier);
+  }
+
+  voices.set(midi, {g:g, oscs:oscs, midi:midi, hold:v.hold, end:end});
 }
 
-function noteOff(midi, forceRel){
+/* ゆびを はなした とき
+ *   オルガン … すぐ とめる
+ *   ピアノ など … とめない。さいごまで なりきる（タップ でも みじかく ならない）
+ */
+function noteOff(midi){
   const v = voices.get(midi);
   if(!v) return;
   voices.delete(midi);
-  const c = audio(), t = c.currentTime;
-  const rel = forceRel || v.rel;
-  try{
-    if(v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(t);
-    else v.g.gain.cancelScheduledValues(t);
-    v.g.gain.setTargetAtTime(0.0001, t, rel / 3);
-  }catch(e){}
-  v.oscs.forEach(o => { try{ o.stop(t + rel + 0.05); }catch(e){} });
-  setTimeout(() => { try{ v.g.disconnect(); }catch(e){} }, (rel + 0.3) * 1000);
+  if(v.hold){
+    fade(v, VOICE[state.inst].rel || 0.08);
+  }else{
+    ringing.push(v);
+    setTimeout(() => { const i = ringing.indexOf(v); if(i >= 0) ringing.splice(i, 1); },
+               Math.max((v.end - audio().currentTime) * 1000, 0) + 200);
+  }
 }
 
-function allOff(){ [...voices.keys()].forEach(m => noteOff(m, 0.05)); }
+function allOff(){ [...voices.values()].forEach(v => fade(v, 0.05)); voices.clear();
+                   [...ringing].forEach(v => fade(v, 0.05)); }
 
 /* ------------------------------------------------------------------ *
  * けんばんを つくる（うえが たかい おと）
@@ -338,7 +395,7 @@ function build(){
       '<div class="badge" style="width:' + badge + 'px;height:' + badge + 'px;' +
         'font-size:' + (badge * (info.ja.length > 1 ? 0.36 : 0.5)) + 'px;background:' + color + ';' +
         (oct > 0 ? 'box-shadow:inset 0 0 0 3px rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12);' : '') +
-      '">' + (state.names === 1 ? info.abc + (Math.floor(m / 12) - 1) : info.ja) + '</div>';
+      '"><span>' + (state.names === 1 ? info.abc + (Math.floor(m / 12) - 1) : info.ja) + '</span></div>';
 
     piano.appendChild(el);
     keyEls.set(m, el);
@@ -427,9 +484,10 @@ window.addEventListener('blur', () => { [...pointers.keys()].forEach(release); a
  * ------------------------------------------------------------------ */
 const $ = id => document.getElementById(id);
 function refresh(){
-  $('octCount').innerHTML = '<span class="k">おとのかず</span>' + state.octaves + 'オクターブ';
-  $('inst').innerHTML     = '<span class="k">がっき</span>' + INSTS[state.inst];
-  $('names').innerHTML    = '<span class="k">なまえ</span>' + ['ひらがな','ABC','なし'][state.names];
+  const lbl = (id, html) => { $(id).querySelector('.lbl').innerHTML = html; };
+  lbl('octCount', '<span class="k">おとのかず</span>' + state.octaves + 'オクターブ');
+  lbl('inst',     '<span class="k">がっき</span>' + INSTS[state.inst]);
+  lbl('names',    '<span class="k">なまえ</span>' + ['ひらがな','ABC','なし'][state.names]);
   document.body.classList.toggle('names-off', state.names === 2);
   $('octMinus').disabled = state.baseOctave <= 1;
   $('octPlus').disabled  = state.baseOctave + state.octaves >= 8;
@@ -445,7 +503,7 @@ $('inst').onclick     = () => { allOff(); state.inst = (state.inst + 1) % INSTS.
 $('names').onclick    = () => { state.names = (state.names + 1) % 3; refresh(); };
 $('lock').onclick     = () => { state.locked = !state.locked;
                                 $('lock').classList.toggle('on', state.locked);
-                                $('lock').textContent = state.locked ? '🔓' : '🔒';
+                                $('lock').querySelector('.lbl').textContent = state.locked ? '🔓' : '🔒';
                                 document.body.classList.toggle('locked', state.locked); };
 $('full').onclick     = () => {
   const el = document.documentElement;
