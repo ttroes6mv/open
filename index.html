@@ -178,7 +178,7 @@ const WHITE = {                       // pitchClass -> ラベルと いろ(HSL)
   11:{ja:'し',   abc:'B', h:325, s:82, l:47}
 };
 const isWhite = m => WHITE.hasOwnProperty(((m % 12) + 12) % 12);
-const freqOf  = m => 440 * Math.pow(2, (m - 69) / 12);
+const freqOf  = m => 442 * Math.pow(2, (m - 69) / 12);   // A=442Hz（もらった コード に あわせる）
 const clamp   = (v, lo, hi) => v < lo ? lo : (v > hi ? hi : v);
 
 const state = {
@@ -191,7 +191,7 @@ const state = {
 
 /* このファイルの ばんごう。がめん ひだりうえ に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v12';
+const VERSION = 'v13';
 
 /* ================================================================== *
  * おとの エンジン（FM がっせい）
@@ -246,8 +246,9 @@ function unlock(){
 const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
 const VOICE = [
   { // ピアノ：もらった コード と おなじ つくり
-    //   サイン波 1つ、おんりょう 1 → 0.001 まで 1びょう かけて さげる だけ
-    simple:{type:'sine', dec:1.0}, hold:false, level:1.0 },
+    //   サイン波 1つ を そのまま ならして、0.5びょう ご に とめる だけ。
+    //   おんりょう の カーブ（エンベロープ）は つけない。
+    simple:{type:'sine', dec:0.5}, hold:false, level:1.0 },
   { // オルガン：おしている あいだ ずっと なる（FM なし・サイン波を かさねる）
     parts:[[1,1],[2,0.5],[4,0.25],[8,0.10]],
     dec:0, decSlope:0, atk:0.020, hold:true, rel:0.08, level:0.47 },
@@ -310,13 +311,11 @@ function noteOn(midi){
       oscs.push(o);
     });
   }else if(v.simple){               // ---- ピアノ（もらった コード と おなじ）----
-    const dec = v.simple.dec;
-    // カーブの かたち は もらった コード と おなじ（1 → 0.001）。
-    // ぜんたいの おんりょう だけ、わおん でも われない ように ちいさく してある。
-    const k = 0.42 * v.level;
+    // もらった コード どおり、おんりょう は かえない（エンベロープ なし）。
+    // ぜんたいの おおきさ だけ、わおん でも われない ように さげて ある。
+    const k = 0.16 * v.level;
     g.gain.setValueAtTime(k, t);
-    g.gain.exponentialRampToValueAtTime(k * 0.001, t + dec);
-    end = t + dec;
+    end = t + v.simple.dec;
 
     const osc = c.createOscillator();
     osc.type = v.simple.type;
