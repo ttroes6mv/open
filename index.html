@@ -126,10 +126,14 @@
   body.names-off .face, body.names-off .badge{display:none;}
 
   /* バージョン（キャッシュで ふるい ものを みて いない か たしかめる ため） */
+  /* 90ど まわすと、きてん から「じぶんの たかさ ぶん」ひだり に はみだす。
+     その ぶん（18px）だけ ひだりを あけて おく と きれない。 */
   #ver{
     position:absolute; z-index:8; pointer-events:none;
-    left:5px; bottom:6px;
-    font-size:12px; font-weight:700; color:#bbb;
+    left:18px; bottom:8px;
+    height:18px; line-height:18px; padding:0 6px;
+    font-size:13px; font-weight:700; color:#8a8a8a;
+    background:#f0f0f0; border-radius:9px;
     transform:rotate(-90deg); transform-origin:left bottom;
   }
 
@@ -189,9 +193,9 @@ const state = {
   locked     : false
 };
 
-/* このファイルの ばんごう。がめん ひだりうえ に でる。
+/* このファイルの ばんごう。けんばん の ひだりした に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v13';
+const VERSION = 'v14';
 
 /* ================================================================== *
  * おとの エンジン（FM がっせい）
