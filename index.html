@@ -20,7 +20,15 @@
     --text:#333;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{height:100%; margin:0; overflow:hidden;}
+  /* ゆびが 2ほん ふれても ページが うごかない ように する */
+  html,body{
+    margin:0; padding:0;
+    position:fixed; inset:0;
+    width:100%; height:100%;
+    overflow:hidden;
+    overscroll-behavior:none;
+    touch-action:none;
+  }
   body{
     height:100dvh;
     background:var(--bg);
@@ -28,7 +36,6 @@
     color:var(--text);
     -webkit-user-select:none; user-select:none;
     -webkit-touch-callout:none;
-    touch-action:manipulation;
     position:relative;
   }
   #app{
@@ -59,6 +66,7 @@
     overflow:hidden;
   }
   button.icon{flex:0.6 1 0; font-size:20px;}
+  button{touch-action:none;}
   /* もじを 90ど ひだり に まわす。ほんたい を とけい まわり に たおすと まっすぐ よめる */
   button > .lbl{
     position:absolute; left:50%; top:50%;
@@ -183,7 +191,7 @@ const state = {
 
 /* このファイルの ばんごう。がめん ひだりうえ に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v11';
+const VERSION = 'v12';
 
 /* ================================================================== *
  * おとの エンジン（FM がっせい）
@@ -237,9 +245,9 @@ function unlock(){
  */
 const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
 const VOICE = [
-  { // でんしピアノ：かねの ような あたま ＋ ながく のびる ほんたい
-    fm:[{ratio:1, index:2.6, idec:0.45}, {ratio:14, index:1.2, idec:0.05}],
-    dec:6.0, decSlope:26, atk:0.004, hold:false, level:0.78 },
+  { // ピアノ：もらった コード と おなじ つくり
+    //   サイン波 1つ、おんりょう 1 → 0.001 まで 1びょう かけて さげる だけ
+    simple:{type:'sine', dec:1.0}, hold:false, level:1.0 },
   { // オルガン：おしている あいだ ずっと なる（FM なし・サイン波を かさねる）
     parts:[[1,1],[2,0.5],[4,0.25],[8,0.10]],
     dec:0, decSlope:0, atk:0.020, hold:true, rel:0.08, level:0.47 },
@@ -301,6 +309,22 @@ function noteOn(midi){
       o.start(t); o.stop(end);
       oscs.push(o);
     });
+  }else if(v.simple){               // ---- ピアノ（もらった コード と おなじ）----
+    const dec = v.simple.dec;
+    // カーブの かたち は もらった コード と おなじ（1 → 0.001）。
+    // ぜんたいの おんりょう だけ、わおん でも われない ように ちいさく してある。
+    const k = 0.42 * v.level;
+    g.gain.setValueAtTime(k, t);
+    g.gain.exponentialRampToValueAtTime(k * 0.001, t + dec);
+    end = t + dec;
+
+    const osc = c.createOscillator();
+    osc.type = v.simple.type;
+    osc.frequency.value = freqOf(midi);
+    osc.connect(g);
+    osc.start(t); osc.stop(end);
+    oscs.push(osc);
+
   }else{                            // ---- FM の がっき ----
     const dec  = clamp(v.dec * Math.pow(2, -(midi - 60) / v.decSlope), 0.3, 9);
     const peak = 0.42 * v.level * Math.pow(2, -(midi - 60) / 60);
@@ -475,7 +499,11 @@ piano.addEventListener('pointermove', e => {
 ['pointerup','pointercancel','pointerleave'].forEach(t =>
   window.addEventListener(t, e => release(e.pointerId))
 );
-document.addEventListener('gesturestart', e => e.preventDefault());
+// ゆび が なんぼん ふれても スクロール させない（passive:false が ひつよう）
+document.addEventListener('touchmove',  e => e.preventDefault(), {passive:false});
+document.addEventListener('gesturestart',  e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
 document.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('blur', () => { [...pointers.keys()].forEach(release); allOff(); });
 
