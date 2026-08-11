@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#ffd400">
+<title>どれみピアノ（2オクターブ）</title>
+<style>
+  :root{
+    --bg:#ffd400;
+    --frame:#ffffff;
+    --line:#d8d8d8;
+    --ui:#f7f7f7;
+    --text:#333;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; margin:0; overflow:hidden;}
+  body{height:100dvh;}
+  body{
+    background:var(--bg);
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",-apple-system,"Segoe UI",sans-serif;
+    color:var(--text);
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+    touch-action:manipulation;
+    display:flex; flex-direction:column;
+    padding:
+      calc(env(safe-area-inset-top) + 8px)
+      calc(env(safe-area-inset-right) + 10px)
+      calc(env(safe-area-inset-bottom) + 6px)
+      calc(env(safe-area-inset-left) + 10px);
+    gap:8px;
+  }
+
+  /* ===== 鍵盤 ===== */
+  #piano{
+    position:relative;
+    flex:1 1 auto;
+    min-height:0;
+    background:var(--frame);
+    border-radius:10px;
+    overflow:hidden;
+    touch-action:none;
+    box-shadow:0 2px 10px rgba(0,0,0,.18);
+  }
+  .white{
+    position:absolute; left:0; right:0;
+    background:#fff;
+    border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:flex-end;
+    padding-right:2.5%;
+    gap:1.5%;
+    transition:background .06s linear;
+  }
+  .white:last-of-type{border-bottom:none;}
+  .white.on{background:#fff2b0;}
+  .black{
+    position:absolute; left:0;
+    width:58%; max-width:440px;
+    background:#161616;
+    border-radius:0 6px 6px 0;
+    box-shadow:0 3px 6px rgba(0,0,0,.35);
+    z-index:3;
+    transition:background .06s linear, transform .06s linear;
+  }
+  .black.on{background:#5c5c5c; transform:scaleY(.94);}
+
+  /* ラベル（かお + まる） */
+  .face{flex:0 0 auto; pointer-events:none;}
+  .badge{
+    flex:0 0 auto; pointer-events:none;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:50%;
+    color:#fff; font-weight:700;
+    letter-spacing:-.04em;
+    box-shadow:inset 0 -2px 0 rgba(0,0,0,.12);
+  }
+  body.names-off .face, body.names-off .badge{display:none;}
+
+  /* とんでいく♪ */
+  .spark{
+    position:absolute; z-index:9; pointer-events:none;
+    font-size:28px; color:#ff5aa8; text-shadow:0 1px 0 #fff;
+    animation:fly .8s ease-out forwards;
+  }
+  @keyframes fly{
+    from{opacity:1; transform:translate(0,0) rotate(0deg) scale(.8);}
+    to{opacity:0; transform:translate(-70px,-46px) rotate(-24deg) scale(1.5);}
+  }
+
+  /* ===== そうさボタン ===== */
+  #bar{
+    flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    flex-wrap:wrap; gap:8px;
+  }
+  button{
+    font:inherit; font-weight:700; font-size:15px;
+    color:var(--text); background:var(--ui);
+    border:none; border-radius:12px;
+    padding:9px 14px; min-height:44px; min-width:52px;
+    box-shadow:0 3px 0 rgba(0,0,0,.18);
+    touch-action:manipulation;
+  }
+  button:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.18);}
+  button .k{font-size:11px; display:block; opacity:.6; line-height:1.1;}
+  button.wide{min-width:104px;}
+  button:disabled{opacity:.35;}
+  #lock.on{background:#ff5a5a; color:#fff;}
+  body.locked #bar button:not(#lock){opacity:.35; pointer-events:none;}
+</style>
+</head>
+<body>
+
+<div id="piano"></div>
+
+<div id="bar">
+  <button id="octMinus" aria-label="ひくい おと">◀ ひくい</button>
+  <button id="octCount" class="wide"><span class="k">おとのかず</span>2オクターブ</button>
+  <button id="octPlus" aria-label="たかい おと">たかい ▶</button>
+  <button id="inst" class="wide"><span class="k">がっき</span>ピアノ</button>
+  <button id="names" class="wide"><span class="k">なまえ</span>ひらがな</button>
+  <button id="lock" aria-label="ボタンを ロック">🔒</button>
+  <button id="full" aria-label="ぜんがめん">⛶</button>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * おとの じょうほう
+ * ------------------------------------------------------------------ */
+const WHITE = {                       // pitchClass -> ラベルと いろ(HSL)
+   0:{ja:'ど',   abc:'C', h:  2, s:78, l:48},
+   2:{ja:'れ',   abc:'D', h: 28, s:92, l:48},
+   4:{ja:'み',   abc:'E', h: 78, s:58, l:44},
+   5:{ja:'ふぁ', abc:'F', h:145, s:80, l:34},
+   7:{ja:'そ',   abc:'G', h:215, s:78, l:48},
+   9:{ja:'ら',   abc:'A', h:275, s:52, l:48},
+  11:{ja:'し',   abc:'B', h:325, s:82, l:47}
+};
+const SHARP = {1:'C#',3:'D#',6:'F#',8:'G#',10:'A#'};
+const isWhite = m => WHITE.hasOwnProperty(((m%12)+12)%12);
+const freqOf  = m => 440 * Math.pow(2, (m-69)/12);
+
+/* じょうたい */
+const state = {
+  baseOctave : 4,       // いちばん ひくい ど（C4 = まんなかのド）
+  octaves    : 2,       // ← ここが「もう1オクターブ」ぶん
+  inst       : 0,
+  names      : 0,       // 0:ひらがな 1:ABC 2:なし
+  locked     : false
+};
+const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
+
+/* ------------------------------------------------------------------ *
+ * おと（Web Audio・おんげんファイル不要）
+ * ------------------------------------------------------------------ */
+let ctx = null, master = null;
+function audio(){
+  if(ctx) return ctx;
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const comp = ctx.createDynamicsCompressor();
+  comp.threshold.value = -18; comp.ratio.value = 8;
+  master = ctx.createGain();
+  master.gain.value = 0.5;
+  master.connect(comp); comp.connect(ctx.destination);
+  return ctx;
+}
+function unlock(){
+  const c = audio();
+  if(c.state === 'suspended') c.resume();
+  // iOS を おこすための むおん
+  const b = c.createBufferSource();
+  b.buffer = c.createBuffer(1,1,22050); b.connect(master); b.start(0);
+}
+
+/* がっきごとの おと（ばいおん・ながさ） */
+const RECIPE = {
+  0:{parts:[[1,'triangle',1],[2,'sine',.3],[3,'sine',.12]], atk:.004, dec:1.7,  rel:.18, cut:4200, cutEnd:700},
+  1:{parts:[[1,'sine',1],[2,'sine',.5],[3,'sine',.28],[4,'sine',.15]], atk:.03, dec:0,   rel:.12, cut:3000, cutEnd:3000},
+  2:{parts:[[1,'sine',1],[2.76,'sine',.5],[5.4,'sine',.16]], atk:.002, dec:2.6, rel:.35, cut:9000, cutEnd:2500},
+  3:{parts:[[1,'sine',1],[4,'sine',.28],[9.2,'sine',.06]], atk:.002, dec:.55,  rel:.1,  cut:6000, cutEnd:1200}
+};
+
+const voices = new Map();   // midi -> voice
+
+function noteOn(midi){
+  const c = audio();
+  if(c.state === 'suspended') c.resume();
+  noteOff(midi, true);
+
+  const r = RECIPE[state.inst];
+  const t = c.currentTime;
+  const f = freqOf(midi);
+
+  const g = c.createGain();
+  const flt = c.createBiquadFilter();
+  flt.type = 'lowpass';
+  flt.frequency.setValueAtTime(r.cut, t);
+  if(r.cutEnd !== r.cut) flt.frequency.exponentialRampToValueAtTime(r.cutEnd, t + 1.2);
+  flt.connect(g); g.connect(master);
+
+  // たかい おとは すこし ちいさく（みみに やさしく）
+  const peak = 0.32 * Math.pow(2, -(midi-60)/34);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(peak, t + r.atk);
+  if(r.dec > 0) g.gain.exponentialRampToValueAtTime(0.0001, t + r.atk + r.dec);
+
+  const oscs = r.parts.map(([mul, type, amp]) => {
+    const o = c.createOscillator(), og = c.createGain();
+    o.type = type; o.frequency.setValueAtTime(f * mul, t);
+    og.gain.value = amp;
+    o.connect(og); og.connect(flt);
+    o.start(t);
+    return o;
+  });
+
+  const v = {g:g, oscs:oscs, end:(r.dec > 0 ? t + r.atk + r.dec + .05 : Infinity), rel:r.rel};
+  voices.set(midi, v);
+  if(r.dec > 0) setTimeout(() => { if(voices.get(midi) === v) stop(midi, v, 0); }, (r.atk + r.dec) * 1000 + 80);
+}
+
+function noteOff(midi, immediate){
+  const v = voices.get(midi);
+  if(!v) return;
+  stop(midi, v, immediate ? 0.01 : v.rel);
+}
+function stop(midi, v, rel){
+  voices.delete(midi);
+  const c = audio(), t = c.currentTime;
+  try{
+    if(v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(t);
+    else{
+      v.g.gain.cancelScheduledValues(t);
+      v.g.gain.setValueAtTime(Math.max(v.g.gain.value, 0.0001), t);
+    }
+    v.g.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(rel, .01));
+  }catch(e){}
+  v.oscs.forEach(o => { try{ o.stop(t + Math.max(rel, .01) + .02); }catch(e){} });
+}
+
+/* ------------------------------------------------------------------ *
+ * けんばんを つくる（うえが たかい おと）
+ * ------------------------------------------------------------------ */
+const piano = document.getElementById('piano');
+const keyEls = new Map();   // midi -> element
+
+function build(){
+  piano.innerHTML = '';
+  keyEls.clear();
+
+  const lo = 12 * (state.baseOctave + 1);          // C4 = 60
+  const hi = lo + 12 * state.octaves;              // いちばん うえの ど
+  const whites = [];
+  for(let m = hi; m >= lo; m--) if(isWhite(m)) whites.push(m);   // うえ→した
+
+  const n  = whites.length;
+  const hPct = 100 / n;
+  const badge = Math.min(46, Math.max(22, (piano.clientHeight / n) * 0.66));
+  const faceW = Math.min(34, badge * 0.8);
+
+  whites.forEach((m, i) => {
+    const info = WHITE[m % 12];
+    const oct  = Math.floor((m - lo) / 12);        // 0 = ひくい がわ
+    const el = document.createElement('div');
+    el.className = 'white';
+    el.style.top    = (i * hPct) + '%';
+    el.style.height = hPct + '%';
+    el.dataset.midi = m;
+
+    // たかい オクターブ ほど すこし あかるい いろ（おなじ「ど」でも みわけやすく）
+    const color = 'hsl(' + info.h + ',' + info.s + '%,' + (info.l - 5 + Math.min(oct, 3) * 7) + '%)';
+    el.innerHTML =
+      '<svg class="face" width="' + faceW + '" height="' + (faceW * 0.72) + '" viewBox="0 0 34 24">' +
+        '<circle cx="8"  cy="7" r="2.4" fill="#2b2b2b"/>' +
+        '<circle cx="19" cy="7" r="2.4" fill="#2b2b2b"/>' +
+        '<path d="M5 12 q8.5 9 17 0" stroke="#f7a6a6" stroke-width="3" fill="none" stroke-linecap="round"/>' +
+        '<circle cx="3"  cy="14" r="3" fill="#ffc8c8"/>' +
+        '<circle cx="24" cy="14" r="3" fill="#ffc8c8"/>' +
+      '</svg>' +
+      '<div class="badge" style="width:' + badge + 'px;height:' + badge + 'px;' +
+        'font-size:' + (badge * (info.ja.length > 1 ? 0.36 : 0.5)) + 'px;background:' + color + ';' +
+        (oct > 0 ? 'box-shadow:inset 0 0 0 3px rgba(255,255,255,.85), inset 0 -2px 0 rgba(0,0,0,.12);' : '') +
+      '">' + (state.names === 1 ? info.abc + (Math.floor(m/12) - 1) : info.ja) + '</div>';
+
+    piano.appendChild(el);
+    keyEls.set(m, el);
+  });
+
+  // くろい けんばん（しろい けんばんの さかいめに おく）
+  const bh = hPct * 0.62;
+  for(let i = 0; i < n - 1; i++){
+    if(whites[i] - whites[i+1] !== 2) continue;    // あいだに くろが ないところ
+    const m = whites[i] - 1;
+    const el = document.createElement('div');
+    el.className = 'black';
+    el.style.top = ((i + 1) * hPct - bh / 2) + '%';
+    el.style.height = bh + '%';
+    el.dataset.midi = m;
+    piano.appendChild(el);
+    keyEls.set(m, el);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ * タッチ（ゆびを なんぼんでも OK）
+ * ------------------------------------------------------------------ */
+const pointers = new Map();   // pointerId -> midi
+
+function midiAt(x, y){
+  const hit = document.elementFromPoint(x, y);
+  const el  = hit && hit.closest ? hit.closest('[data-midi]') : null;
+  return el ? +el.dataset.midi : null;
+}
+function press(id, midi){
+  const cur = pointers.get(id);
+  if(cur === midi) return;
+  if(cur !== undefined) release(id);
+  if(midi === null || midi === undefined) return;
+  pointers.set(id, midi);
+  const el = keyEls.get(midi);
+  if(el){ el.classList.add('on'); spark(el); }
+  noteOn(midi);
+}
+function release(id){
+  const midi = pointers.get(id);
+  if(midi === undefined) return;
+  pointers.delete(id);
+  // おなじ おとを ほかの ゆびが おして いなければ とめる
+  let held = false;
+  pointers.forEach(v => { if(v === midi) held = true; });
+  if(!held){
+    const el = keyEls.get(midi);
+    if(el) el.classList.remove('on');
+    noteOff(midi);
+  }
+}
+function spark(el){
+  const s = document.createElement('div');
+  s.className = 'spark';
+  s.textContent = Math.random() < .5 ? '♪' : '♫';
+  const r = el.getBoundingClientRect(), p = piano.getBoundingClientRect();
+  s.style.left = (r.right - p.left - 60) + 'px';
+  s.style.top  = (r.top - p.top + r.height / 2 - 20) + 'px';
+  piano.appendChild(s);
+  s.addEventListener('animationend', () => s.remove());
+}
+
+piano.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  unlock();
+  press(e.pointerId, midiAt(e.clientX, e.clientY));
+});
+piano.addEventListener('pointermove', e => {
+  if(!pointers.has(e.pointerId)) return;
+  e.preventDefault();
+  press(e.pointerId, midiAt(e.clientX, e.clientY));   // なぞって グリッサンド
+});
+['pointerup','pointercancel','pointerleave'].forEach(t =>
+  window.addEventListener(t, e => release(e.pointerId))
+);
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+window.addEventListener('blur', () => { [...pointers.keys()].forEach(release); });
+
+/* ------------------------------------------------------------------ *
+ * ボタン
+ * ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+function refresh(){
+  $('octCount').innerHTML = '<span class="k">おとのかず</span>' + state.octaves + 'オクターブ';
+  $('inst').innerHTML     = '<span class="k">がっき</span>' + INSTS[state.inst];
+  $('names').innerHTML    = '<span class="k">なまえ</span>' + ['ひらがな','ABC','なし'][state.names];
+  document.body.classList.toggle('names-off', state.names === 2);
+  $('octMinus').disabled = state.baseOctave <= 1;
+  $('octPlus').disabled  = state.baseOctave + state.octaves >= 8;
+  build();
+  save();
+}
+$('octCount').onclick = () => { state.octaves = state.octaves === 2 ? 3 : (state.octaves === 3 ? 1 : 2);
+                                if(state.baseOctave + state.octaves > 8) state.baseOctave = 8 - state.octaves;
+                                refresh(); };
+$('octMinus').onclick = () => { if(state.baseOctave > 1){ state.baseOctave--; refresh(); } };
+$('octPlus').onclick  = () => { if(state.baseOctave + state.octaves < 8){ state.baseOctave++; refresh(); } };
+$('inst').onclick     = () => { state.inst  = (state.inst + 1) % INSTS.length; unlock(); refresh(); };
+$('names').onclick    = () => { state.names = (state.names + 1) % 3; refresh(); };
+$('lock').onclick     = () => { state.locked = !state.locked;
+                                $('lock').classList.toggle('on', state.locked);
+                                $('lock').textContent = state.locked ? '🔓' : '🔒';
+                                document.body.classList.toggle('locked', state.locked); };
+$('full').onclick     = () => {
+  const el = document.documentElement;
+  if(document.fullscreenElement || document.webkitFullscreenElement){
+    (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+  }else if(el.requestFullscreen || el.webkitRequestFullscreen){
+    (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+  }
+};
+if(!(document.documentElement.requestFullscreen || document.documentElement.webkitRequestFullscreen)){
+  $('full').style.display = 'none';
+}
+
+/* せっていを おぼえる */
+function save(){
+  try{ localStorage.setItem('doremi', JSON.stringify(
+    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names})); }catch(e){}
+}
+try{
+  const s = JSON.parse(localStorage.getItem('doremi') || 'null');
+  if(s) Object.assign(state, s);
+}catch(e){}
+
+let rt;
+window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(build, 150); });
+window.addEventListener('orientationchange', () => setTimeout(build, 300));
+
+refresh();
+})();
+</script>
+</body>
+</html>
