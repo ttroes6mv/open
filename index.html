@@ -33,46 +33,35 @@
   }
   #app{
     position:absolute; inset:0;
-    display:flex; flex-direction:column; gap:6px;
+    display:flex; flex-direction:row; gap:6px;   /* ボタン列（ひだり）＋ けんばん（みぎ）*/
     padding:
       calc(env(safe-area-inset-top) + 6px)
       calc(env(safe-area-inset-right) + 10px)
       calc(env(safe-area-inset-bottom) + 8px)
       calc(env(safe-area-inset-left) + 10px);
   }
-  /* がめんかいてん ロック が ON でも よこもち で つかえる ように、
-     なかみ ぜんたい を 90ど まわす */
-  body.rot #app{
-    inset:auto;
-    top:50%; left:50%;
-    width:100dvh; height:100dvw;
-    transform-origin:center center;
-    transform:translate(-50%,-50%) rotate(-90deg);
-    padding:10px;
-  }
-
-  /* ===== そうさボタン（うえに よせる） ===== */
+  /* ===== そうさボタン（ひだりに たて1れつ・うえした いっぱい）=====
+     iPad を よこ に たおすと、この れつ が そのまま けんばん の うえ に くる */
   #bar{
     flex:0 0 auto;
-    display:flex; align-items:stretch; gap:6px;
-    flex-wrap:wrap;                 /* はばが せまい ときは 2だん に おりかえす */
-    width:100%;
+    display:flex; flex-direction:column; align-items:stretch; gap:6px;
+    width:clamp(112px, 20%, 190px);
+    height:100%;
   }
   button{
     font:inherit; font-weight:700; font-size:17px;
     color:var(--text); background:var(--ui);
     border:none; border-radius:12px;
-    flex:1 1 auto; min-width:104px;  /* もじが きれない さいしょうはば */
-    min-height:52px; padding:6px 4px;
+    flex:1 1 0;                      /* うえした いっぱい に ひろげる */
+    width:100%; min-height:48px; padding:4px;
     box-shadow:0 3px 0 rgba(0,0,0,.16);
     white-space:nowrap; overflow:hidden;
   }
-  button.icon{flex:0 0 66px; min-width:66px; font-size:20px;}
+  button.icon{flex:0.6 1 0; font-size:20px;}
   button:active{transform:translateY(2px); box-shadow:0 1px 0 rgba(0,0,0,.16);}
   button:disabled{opacity:.35;}
   button .k{font-size:11px; display:block; opacity:.55; line-height:1.2; font-weight:700;}
   #lock.on{background:#ff5a5a; color:#fff;}
-  #rot.on{background:#2f8fe0; color:#fff;}
   body.locked #bar button:not(#lock){opacity:.3; pointer-events:none;}
 
   /* ===== 鍵盤 ===== */
@@ -147,7 +136,6 @@
   <button id="octPlus" aria-label="たかい おと">たかい ▶</button>
   <button id="inst"><span class="k">がっき</span>ピアノ</button>
   <button id="names"><span class="k">なまえ</span>ひらがな</button>
-  <button id="rot" class="icon" aria-label="がめんを まわす">⟳</button>
   <button id="lock" class="icon" aria-label="ボタンを ロック">🔒</button>
   <button id="full" class="icon" aria-label="ぜんがめん">⛶</button>
 </div>
@@ -180,19 +168,18 @@ const state = {
   octaves    : 2,
   inst       : 0,
   names      : 0,       // 0:ひらがな 1:ABC 2:なし
-  rot        : false,   // がめんを 90ど まわして よこもち で つかう
   locked     : false
 };
 
 /* このファイルの ばんごう。がめん ひだりうえ に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v9';
+const VERSION = 'v10';
 
 /* ================================================================== *
- * おとの エンジン（シンプルな でんしおん）
- *   ・がっき ごとに きめた ばいおん の わりあい を もつ はけい を 1つ つくり、
- *     オシレーター 1つ ＋ おんりょうカーブ 1つ で ならす
- *   ・よけいな しょり を いれない ぶん、すっきり した おと に なる
+ * おとの エンジン（MIDI の ような でんしおん）
+ *   ・すべて サイン波。ノコギリ波の ような「ブー」と いう にごり が でない
+ *   ・きほんの おと は ながく のこし、たかい ばいおん だけ すぐ きえる ように する。
+ *     これで「ピン」と いう あたま の ある おと に なる
  * ================================================================== */
 let ctx = null, bus = null, master = null;
 
@@ -228,31 +215,23 @@ function unlock(){
   b.connect(master); b.start(0);
 }
 
-/* ---- がっき（ばいおん の わりあい だけ で きめる） ----
- * harm[0] が きほんの おと、harm[1] が 2ばい、harm[2] が 3ばい… の おおきさ。
- * dec … おとが きえるまでの びょうすう（60 は まんなかの ド）
- * hold … true なら おしている あいだ ずっと なる
+/* ---- がっき ----
+ * parts の 1つ 1つ が サイン波。[ばいすう, おおきさ, きえるまでの びょうすう]
+ * きほんの おと（ばいすう 1）だけ ながく のこして、うえの ばいおん は
+ * すぐ きえる ように すると「ピン」と いう おと に なる。
+ * dec が 0 の ものは、おしている あいだ ずっと なりつづける。
  */
 const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
 const VOICE = [
-  { harm:[1, 0.50, 0.33, 0.25, 0.18, 0.13, 0.09, 0.06],  // でんしピアノ（ばいおん おおめ ＝ あかるい）
-    atk:0.004, dec:2.4, decSlope:30, hold:false, rel:0.09, cut:9000, level:0.85 },
-  { harm:[1, 0.55, 0.32, 0.36, 0, 0.18, 0, 0.10], // オルガン
-    atk:0.020, dec:0,   decSlope:0,  hold:true,  rel:0.08, cut:7000, level:0.62 },
-  { harm:[1, 0, 0.45, 0, 0.28, 0, 0.14, 0.08],    // ベル
-    atk:0.002, dec:2.8, decSlope:26, hold:false, rel:0.25, cut:11000, level:0.95 },
-  { harm:[1, 0, 0, 0.35, 0, 0, 0, 0.12],          // マリンバ
-    atk:0.002, dec:0.55, decSlope:24, hold:false, rel:0.07, cut:10000, level:1.30 }
+  { parts:[[1, 1, 1.5], [2, 0.35, 0.50], [4, 0.30, 0.16], [8, 0.16, 0.07], [12, 0.07, 0.04]],  // でんしピアノ（ピン）
+    atk:0.003, decSlope:30, hold:false, rel:0.08, level:1.30 },
+  { parts:[[1, 1, 0], [2, 0.50, 0], [4, 0.25, 0], [8, 0.10, 0]],              // オルガン
+    atk:0.020, decSlope:0,  hold:true,  rel:0.08, level:0.52 },
+  { parts:[[1, 1, 2.2], [3, 0.45, 0.8], [5.4, 0.22, 0.3], [8.2, 0.08, 0.12]], // ベル（チーン）
+    atk:0.002, decSlope:26, hold:false, rel:0.25, level:1.00 },
+  { parts:[[1, 1, 0.5], [4, 0.32, 0.10], [10, 0.10, 0.04]],                   // マリンバ（ポン）
+    atk:0.002, decSlope:24, hold:false, rel:0.07, level:1.65 }
 ];
-
-const waveCache = [];
-function waveOf(i){
-  if(waveCache[i]) return waveCache[i];
-  const h  = VOICE[i].harm;
-  const re = new Float32Array(h.length + 1), im = new Float32Array(h.length + 1);
-  h.forEach((a, n) => { im[n + 1] = a; });        // すべて サイン波 の いち で そろえる
-  return (waveCache[i] = ctx.createPeriodicWave(re, im, {disableNormalization:true}));
-}
 
 const voices = new Map();     // midi -> voice
 const MAX_VOICES = 14;
@@ -266,37 +245,38 @@ function noteOn(midi){
   const v = VOICE[state.inst];
   const t = c.currentTime + 0.002;
   const f = freqOf(midi);
-  const sum = v.harm.reduce((a, b) => a + b, 0);
-
-  const osc = c.createOscillator();
-  osc.setPeriodicWave(waveOf(state.inst));
-  osc.frequency.setValueAtTime(f, t);
-
-  // たかい おとが きつく ならない ように かるく フタ を する
-  const lp = c.createBiquadFilter();
-  lp.type = 'lowpass';
-  lp.frequency.value = clamp(v.cut, f * 4, 16000);
-  lp.Q.value = 0.4;
+  const sum = v.parts.reduce((a, p) => a + p[1], 0);
 
   const g = c.createGain();
-  const peak = 0.55 * v.level / sum * Math.pow(2, -(midi - 60) / 60);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.linearRampToValueAtTime(peak, t + v.atk);
+  g.gain.setValueAtTime(0.55 * v.level / sum * Math.pow(2, -(midi - 60) / 60), t);
+  g.connect(bus);
 
-  let stopAt;
-  if(v.hold){
-    stopAt = t + 3600;
-  }else{
-    // ひくい おと ほど ながく のびる
-    const dec = clamp(v.dec * Math.pow(0.5, (midi - 60) / v.decSlope), 0.25, 6);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + v.atk + dec);
-    stopAt = t + v.atk + dec + 0.05;
-  }
+  // ひくい おと ほど ながく のびる
+  const scale = v.hold ? 1 : Math.pow(2, -(midi - 60) / v.decSlope);
+  let last = 0;
 
-  osc.connect(lp); lp.connect(g); g.connect(bus);
-  osc.start(t); osc.stop(stopAt);
+  const oscs = v.parts.map(([ratio, amp, dec]) => {
+    const o  = c.createOscillator();
+    const pg = c.createGain();
+    o.type = 'sine';                       // サイン波 だけ ＝ にごらない
+    o.frequency.setValueAtTime(f * ratio, t);
+    pg.gain.setValueAtTime(0.0001, t);
+    pg.gain.linearRampToValueAtTime(amp, t + v.atk);
+    let end;
+    if(v.hold || dec === 0){
+      end = t + 3600;
+    }else{
+      const d = clamp(dec * scale, 0.03, 6);
+      pg.gain.exponentialRampToValueAtTime(0.0001, t + v.atk + d);
+      end = t + v.atk + d + 0.05;
+      if(d > last) last = d;
+    }
+    o.connect(pg); pg.connect(g);
+    o.start(t); o.stop(end);
+    return o;
+  });
 
-  voices.set(midi, {g:g, oscs:[osc], rel:v.rel, tail:g});
+  voices.set(midi, {g:g, oscs:oscs, rel:v.rel});
 }
 
 function noteOff(midi, forceRel){
@@ -451,7 +431,6 @@ function refresh(){
   $('inst').innerHTML     = '<span class="k">がっき</span>' + INSTS[state.inst];
   $('names').innerHTML    = '<span class="k">なまえ</span>' + ['ひらがな','ABC','なし'][state.names];
   document.body.classList.toggle('names-off', state.names === 2);
-  document.body.classList.toggle('rot', state.rot);
   $('octMinus').disabled = state.baseOctave <= 1;
   $('octPlus').disabled  = state.baseOctave + state.octaves >= 8;
   build();
@@ -464,10 +443,6 @@ $('octMinus').onclick = () => { if(state.baseOctave > 1){ state.baseOctave--; al
 $('octPlus').onclick  = () => { if(state.baseOctave + state.octaves < 8){ state.baseOctave++; allOff(); refresh(); } };
 $('inst').onclick     = () => { allOff(); state.inst = (state.inst + 1) % INSTS.length; unlock(); refresh(); };
 $('names').onclick    = () => { state.names = (state.names + 1) % 3; refresh(); };
-$('rot').onclick      = () => { state.rot = !state.rot;
-                                document.body.classList.toggle('rot', state.rot);
-                                $('rot').classList.toggle('on', state.rot);
-                                setTimeout(refresh, 60); };
 $('lock').onclick     = () => { state.locked = !state.locked;
                                 $('lock').classList.toggle('on', state.locked);
                                 $('lock').textContent = state.locked ? '🔓' : '🔒';
@@ -486,7 +461,7 @@ if(!(document.documentElement.requestFullscreen || document.documentElement.webk
 
 function save(){
   try{ localStorage.setItem('doremi', JSON.stringify(
-    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names, rot:state.rot})); }catch(e){}
+    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names})); }catch(e){}
 }
 try{
   const s = JSON.parse(localStorage.getItem('doremi') || 'null');
