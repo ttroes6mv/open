@@ -158,10 +158,11 @@ const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
 
 /* ================================================================== *
  * おとの エンジン
- *   ・サイン波の ばいおん を かさねる かさん合成
- *   ・ばいおん ごとに へる はやさ を かえる（たかい ばいおん ほど はやく きえる）
+ *   ・ばいおん を 40ぽん まで まとめた はけい（PeriodicWave）を 3つの たいいき に わけ、
+ *     たいいき ごとに きえる はやさ を かえる（たかい ばいおん ほど はやく きえる）
  *   ・ピアノは わずかに ずれた ふくすうの げん ＋ ハンマーの おと
- *   ・さいごに ホール の ひびき（リバーブ）を すこし かける
+ *   ・さいごに EQ（ひくい にごり を カット、たかい ほうを もちあげ）と
+ *     かるい リバーブ を とおす
  * ================================================================== */
 let ctx = null, bus = null, master = null, noiseBuf = null;
 
@@ -240,51 +241,82 @@ function unlock(){
   b.connect(master); b.start(0);
 }
 
-/* ---- がっき ごとの ばいおん の せっけい ---- */
+/* ---- ばいおん を まとめた はけい を つくる ----
+ * サイン波を 1ぽんずつ ならべる やりかた だと ばいおん の かず に かぎりが あり、
+ * たかい ばいおん が たりなく なって こもった おと に なる。
+ * PeriodicWave なら ばいおん を 40ぽん でも オシレーター 1つ で だせて、
+ * しかも ブラウザが かってに おりかえし（エイリアス）を ふせいで くれる。
+ */
+const waveCache = {};
+function wave(key, from, to, ampFn){
+  if(waveCache[key]) return waveCache[key];
+  const re = new Float32Array(to + 1), im = new Float32Array(to + 1);
+  for(let n = from; n <= to; n++){
+    const a  = ampFn(n);
+    const ph = n * 2.39996;              // いちを ばらけさせて とがった はけい に しない
+    re[n] = a * Math.cos(ph);
+    im[n] = a * Math.sin(ph);
+  }
+  const w = ctx.createPeriodicWave(re, im, {disableNormalization:true});
+  waveCache[key] = w;
+  return w;
+}
+function sumAmp(from, to, ampFn){
+  let s = 0;
+  for(let n = from; n <= to; n++) s += ampFn(n);
+  return s;
+}
+
+/* ---- がっき ごとの おと の せっけい ---- */
+const PIANO_H = n => Math.pow(n, -0.85) * (n % 2 ? 1 : 0.82);
+const ORGAN_T = {1:1, 2:0.6, 3:0.5, 4:0.35, 6:0.22, 8:0.15, 10:0.1, 12:0.07, 16:0.04};
+const ORGAN_H = n => ORGAN_T[n] || 0;
+
 function spec(inst, midi){
   const f = freqOf(midi);
-  const parts = [];
-  const push = (ratio, amp, dec, detune) =>
-    parts.push({f: f * ratio * (detune || 1), a: amp, d: dec});
+  const bands = [];
 
   if(inst === 0){            // ピアノ
-    // ひくい おと ほど ながく のびる
     const base = clamp(6.5 * Math.pow(0.5, (midi - 33) / 24), 0.8, 4.5);
-    for(let n = 1; n <= 14; n++){
-      // げんの かたさ による ずれ（インハーモニシティ）
-      const fr = n * Math.sqrt(1 + 0.0004 * n * n);
-      if(f * fr > 16500) break;
-      // ばいおん を つよめに のこす と おとが クリアに なる
-      const amp = Math.pow(n, -0.95) * (n % 2 ? 1 : 0.8);
-      const dec = base / (1 + 0.55 * (n - 1));
-      push(fr, amp, dec);
-      if(n <= 3) push(fr, amp * 0.45, dec * 0.95, 1.0013);  // となりの げん（すこし ずれる）
-    }
-    return {parts:parts, atk:0.006, hold:false, noise:0.06, rel:0.10, level:1.0};
+    // ひくい ばいおん は ながく のこり、たかい ばいおん ほど はやく きえる
+    bands.push({wave:wave('pLo',  1,  6, PIANO_H), a:1,    d:base});
+    bands.push({wave:wave('pLo',  1,  6, PIANO_H), a:0.42, d:base * 0.95, detune:2.2}); // となりの げん
+    // げんの かたさ で たかい ばいおん は すこし うわずる（ピアノ らしい きらめき）
+    bands.push({wave:wave('pMid', 7, 16, PIANO_H), a:1,    d:base * 0.34, detune:4});
+    bands.push({wave:wave('pHi', 17, 40, PIANO_H), a:1,    d:base * 0.13, detune:14});
+    return {bands:bands, sum:sumAmp(1, 40, PIANO_H) * 1.42,
+            atk:0.005, hold:false, noise:0.10, rel:0.10, level:1.0};
   }
 
   if(inst === 1){            // オルガン（おしている あいだ のびる）
-    [[1,1],[2,0.62],[3,0.48],[4,0.34],[6,0.22],[8,0.15],[10,0.09]].forEach(([r,a]) => {
-      if(f * r < 16500) push(r, a, 0);
-    });
-    return {parts:parts, atk:0.028, hold:true, noise:0.015, rel:0.10, level:0.58};
+    bands.push({wave:wave('org', 1, 16, ORGAN_H), a:1,   d:0});
+    bands.push({wave:wave('org', 1, 16, ORGAN_H), a:0.5, d:0, detune:3});  // すこし ずらして あつく
+    return {bands:bands, sum:sumAmp(1, 16, ORGAN_H) * 1.5,
+            atk:0.026, hold:true, noise:0.02, rel:0.10, level:0.50};
   }
 
-  if(inst === 2){            // ベル（かねの ような ひびき）
-    const base = clamp(5.5 * Math.pow(0.5, (midi - 60) / 34), 1.2, 6);
-    [[0.56,1],[0.92,0.62],[1.19,0.5],[1.71,0.34],[2.0,0.28],
-     [2.74,0.2],[3.0,0.15],[3.76,0.1],[4.07,0.08]].forEach(([r,a],i) => {
-      if(f * r < 16500) push(r, a, base * (1 - i * 0.075));
-    });
-    return {parts:parts, atk:0.003, hold:false, noise:0.03, rel:0.30, level:1.25};
+  if(inst === 2){            // ベル（ばいおん が せいすう倍で ない）
+    const base = clamp(5.0 * Math.pow(0.5, (midi - 60) / 34), 1.0, 5);
+    let sum = 0;
+    [[0.56,0.55],[0.92,0.6],[1.19,0.55],[1.71,0.42],[2.0,0.36],[2.74,0.3],
+     [3.0,0.24],[3.76,0.2],[4.07,0.17],[5.43,0.12],[6.8,0.09],[8.2,0.06]]
+      .forEach(([r, a], i) => {
+        if(f * r > 17000) return;
+        sum += a;
+        bands.push({ratio:r, a:a, d:base * (1 - i * 0.06)});
+      });
+    return {bands:bands, sum:sum, atk:0.002, hold:false, noise:0.05, rel:0.30, level:1.25};
   }
 
-  // マリンバ（きの ばち の おと）
+  // マリンバ（きの ばん の モード）
   const base = clamp(1.4 * Math.pow(0.5, (midi - 60) / 30), 0.25, 1.6);
-  [[1,1,1],[3.932,0.42,0.30],[9.538,0.14,0.12]].forEach(([r,a,dm]) => {
-    if(f * r < 16500) push(r, a, base * dm);
+  let sum = 0;
+  [[1,1,1],[3.932,0.5,0.32],[9.538,0.22,0.14],[16.688,0.1,0.08]].forEach(([r, a, dm]) => {
+    if(f * r > 17000) return;
+    sum += a;
+    bands.push({ratio:r, a:a, d:base * dm});
   });
-  return {parts:parts, atk:0.003, hold:false, noise:0.05, rel:0.08, level:1.5};
+  return {bands:bands, sum:sum, atk:0.002, hold:false, noise:0.08, rel:0.08, level:1.5};
 }
 
 const voices = new Map();     // midi -> voice
@@ -302,8 +334,7 @@ function noteOn(midi){
 
   const g = c.createGain();
   // ぜんぶの ばいおん を たしても おおきく なりすぎない ように ならす
-  const sum  = s.parts.reduce((x, p) => x + p.a, 0) || 1;
-  const peak = 0.30 * s.level / sum
+  const peak = 0.30 * s.level / (s.sum || 1)
              * Math.pow(2, -(midi - 60) / 70)          // たかい おとは すこし ちいさく
              * (0.94 + Math.random() * 0.12);          // まいかい ほんの すこし ちがう
   g.gain.setValueAtTime(peak, t);
@@ -318,11 +349,13 @@ function noteOn(midi){
     g.connect(bus);
   }
 
-  const oscs = s.parts.map(p => {
+  const oscs = s.bands.map(p => {
     const o  = c.createOscillator();
     const pg = c.createGain();
-    o.type = 'sine';
-    o.frequency.setValueAtTime(p.f, t);
+    if(p.wave) o.setPeriodicWave(p.wave);         // ばいおん を まとめた はけい
+    else       o.type = 'sine';                   // ベル・マリンバ は 1つずつ
+    o.frequency.setValueAtTime(freqOf(midi) * (p.ratio || 1), t);
+    if(p.detune) o.detune.setValueAtTime(p.detune, t);
     pg.gain.setValueAtTime(0.0001, t);
     pg.gain.linearRampToValueAtTime(p.a, t + s.atk);
     if(!s.hold) pg.gain.exponentialRampToValueAtTime(0.0001, t + s.atk + p.d);
@@ -336,11 +369,11 @@ function noteOn(midi){
   if(s.noise){
     const src = c.createBufferSource(), bp = c.createBiquadFilter(), ng = c.createGain();
     src.buffer = noiseBuf;
-    bp.type = 'bandpass';
-    bp.frequency.value = clamp(freqOf(midi) * 4.5, 900, 8000);
-    bp.Q.value = 1.0;
+    bp.type = 'highpass';                        // たかい ほうだけ のこすと あたま が はっきり する
+    bp.frequency.value = clamp(freqOf(midi) * 3, 1200, 6000);
+    bp.Q.value = 0.7;
     ng.gain.setValueAtTime(s.noise, t);
-    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.055);
+    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
     src.connect(bp); bp.connect(ng); ng.connect(g);
     src.start(t); src.stop(t + 0.12);
   }
