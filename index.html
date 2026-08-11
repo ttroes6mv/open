@@ -85,6 +85,58 @@
   #rec.on{background:#e01e5a; color:#fff;}
   body.locked #bar button:not(#lock){opacity:.3; pointer-events:none;}
 
+  /* ===== キャラクターの ステージ（ボタンと けんばん の あいだ）===== */
+  #stage{
+    flex:0 0 auto;
+    width:clamp(92px, 24%, 240px);
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+    pointer-events:none;          /* さわっても じゃま を しない */
+    background:var(--frame);
+    border-radius:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.18);
+  }
+  #chara{ transform:rotate(-90deg); }   /* ほんたい を たおすと まっすぐ たつ */
+  #dancer{
+    transform-origin:50% 92%;
+    animation:bob .62s ease-in-out infinite alternate;
+  }
+  @keyframes bob{
+    from{transform:translateY(2%)  rotate(-4deg);}
+    to  {transform:translateY(-6%) rotate(4deg);}
+  }
+  /* けんばん を おした ときの ジャンプ */
+  #act.go{ animation:jump .42s ease-out; }
+  @keyframes jump{
+    0%  {transform:translateY(0)    scale(1,    1);}
+    22% {transform:translateY(3%)   scale(1.18, 0.84);}
+    55% {transform:translateY(-26%) scale(0.9,  1.14);}
+    80% {transform:translateY(2%)   scale(1.1,  0.92);}
+    100%{transform:translateY(0)    scale(1,    1);}
+  }
+  .arm{ transform-box:fill-box; transform-origin:50% 6%; }
+  .armL{ animation:swingL .31s ease-in-out infinite alternate; }
+  .armR{ animation:swingR .31s ease-in-out infinite alternate; }
+  @keyframes swingL{ from{transform:rotate(-26deg);} to{transform:rotate(16deg);} }
+  @keyframes swingR{ from{transform:rotate(26deg);}  to{transform:rotate(-16deg);} }
+  .leg{ transform-box:fill-box; transform-origin:50% 0%;
+        animation:swingR .31s ease-in-out infinite alternate; }
+  .leg2{ animation-name:swingL; }
+
+  .eyeHappy, .mouthOpen{ display:none; }
+  #chara.happy .eyeNormal, #chara.happy .mouthSmile{ display:none; }
+  #chara.happy .eyeHappy,  #chara.happy .mouthOpen { display:inline; }
+
+  /* おした おと の いろ が ひろがる わ */
+  #ring{
+    opacity:0;
+  }
+  #chara.happy #ring{ animation:ringOut .45s ease-out; }
+  @keyframes ringOut{
+    from{opacity:.55; transform:scale(.55);}
+    to  {opacity:0;   transform:scale(1.5);}
+  }
+
   /* ===== 鍵盤 ===== */
   #piano{
     position:relative;
@@ -189,6 +241,51 @@
   <button id="full" class="icon" aria-label="ぜんがめん"><span class="lbl">⛶</span></button>
 </div>
 
+<div id="stage">
+  <div id="chara">
+    <div id="dancer"><div id="act">
+      <svg id="charaSvg" viewBox="0 0 120 132" width="100%" height="100%">
+        <g id="ring" style="transform-box:fill-box; transform-origin:center;">
+          <circle cx="60" cy="62" r="52" fill="none" stroke="var(--cc,#ffca3a)" stroke-width="7"/>
+        </g>
+        <ellipse cx="60" cy="123" rx="30" ry="6" fill="rgba(0,0,0,.13)"/>
+        <!-- あし -->
+        <rect class="leg"  x="43" y="94" width="13" height="26" rx="6.5" fill="#6b4a2f"/>
+        <rect class="leg leg2" x="64" y="94" width="13" height="26" rx="6.5" fill="#6b4a2f"/>
+        <!-- みみ -->
+        <circle cx="28" cy="26" r="13" fill="var(--cc,#ffca3a)"/>
+        <circle cx="92" cy="26" r="13" fill="var(--cc,#ffca3a)"/>
+        <circle cx="28" cy="26" r="6"  fill="#ffb4c8"/>
+        <circle cx="92" cy="26" r="6"  fill="#ffb4c8"/>
+        <!-- うで -->
+        <rect class="arm armL" x="8"  y="52" width="12" height="34" rx="6" fill="var(--cc,#ffca3a)"/>
+        <rect class="arm armR" x="100" y="52" width="12" height="34" rx="6" fill="var(--cc,#ffca3a)"/>
+        <!-- からだ -->
+        <ellipse cx="60" cy="62" rx="40" ry="38" fill="var(--cc,#ffca3a)"/>
+        <ellipse cx="60" cy="74" rx="24" ry="20" fill="#fff6da"/>
+        <!-- ほっぺ -->
+        <circle cx="33" cy="70" r="9" fill="#ff9dbb" opacity=".85"/>
+        <circle cx="87" cy="70" r="9" fill="#ff9dbb" opacity=".85"/>
+        <!-- め -->
+        <g class="eyeNormal">
+          <circle cx="46" cy="54" r="7.5" fill="#3a2b1c"/>
+          <circle cx="74" cy="54" r="7.5" fill="#3a2b1c"/>
+          <circle cx="48.5" cy="51" r="2.6" fill="#fff"/>
+          <circle cx="76.5" cy="51" r="2.6" fill="#fff"/>
+        </g>
+        <g class="eyeHappy" fill="none" stroke="#3a2b1c" stroke-width="4.5" stroke-linecap="round">
+          <path d="M39 57 q7 -10 14 0"/>
+          <path d="M67 57 q7 -10 14 0"/>
+        </g>
+        <!-- くち -->
+        <path class="mouthSmile" d="M52 71 q8 8 16 0" fill="none" stroke="#3a2b1c"
+              stroke-width="4" stroke-linecap="round"/>
+        <ellipse class="mouthOpen" cx="60" cy="74" rx="9" ry="11" fill="#c94a63"/>
+      </svg>
+    </div></div>
+  </div>
+</div>
+
 <div id="piano"></div>
 </div>
 
@@ -264,7 +361,7 @@ function nextNote(){
 
 /* このファイルの ばんごう。けんばん の ひだりした に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v17';
+const VERSION = 'v18';
 
 /* ================================================================== *
  * おとの エンジン
@@ -586,6 +683,36 @@ function build(){
   piano.appendChild(v);
 
   updateMark();
+  sizeChara();
+}
+
+/* ---- キャラクター ---- */
+const stage   = document.getElementById('stage');
+const chara   = document.getElementById('chara');
+const charaAct= document.getElementById('act');
+let   charaTimer = null;
+
+/* ステージの はば に あわせて おおきさ を きめる。
+   90ど まわして いる ので、たて と よこ が いれかわる。 */
+function sizeChara(){
+  const h = stage.clientWidth * 0.94;      // まわした あと の たて はば
+  chara.style.height = h + 'px';
+  chara.style.width  = (h * 120 / 132) + 'px';
+}
+
+function danceTo(midi){
+  const info = WHITE[((midi % 12) + 12) % 12];
+  // おした けん の いろ に なる（くろい けん は むらさき）
+  chara.style.setProperty('--cc',
+    info ? 'hsl(' + info.h + ',' + info.s + '%,' + (info.l + 14) + '%)' : '#9b7bd4');
+
+  charaAct.classList.remove('go');
+  void charaAct.offsetWidth;          // アニメを さいしょ から やりなおす
+  charaAct.classList.add('go');
+  chara.classList.add('happy');
+
+  clearTimeout(charaTimer);
+  charaTimer = setTimeout(() => chara.classList.remove('happy'), 430);
 }
 
 /* おてほん の マークを つけなおす */
@@ -642,6 +769,7 @@ function press(id, midi){
   const el = keyEls.get(midi);
   if(el){ el.classList.add('on'); spark(el); }
   noteOn(midi);
+  danceTo(midi);
 
   // ろくおん ちゅう は、おした けん を じゅんばんに おぼえる
   if(recording){
