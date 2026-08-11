@@ -141,6 +141,26 @@
     transform:rotate(-90deg); transform-origin:left bottom;
   }
 
+  /* おてほん の マーク（つぎに おす けん に でる） */
+  .mark{
+    flex:0 0 auto;
+    display:flex; align-items:center; justify-content:center;
+    border-radius:50%;
+    background:#ff2d6f; color:#fff;
+    box-shadow:0 0 0 4px rgba(255,45,111,.28);
+    z-index:5; pointer-events:none;
+    animation:pulse .7s ease-in-out infinite alternate;
+  }
+  @keyframes pulse{
+    from{transform:scale(1);}
+    to  {transform:scale(1.16);}
+  }
+  /* マークが でて いる けん は、かお を かくして ばしょ を あける */
+  .white.next .face{visibility:hidden;}
+  .white.next{background:#fff0f5;}
+  .black.next{background:#c2185b;}
+  .black{display:flex; align-items:center; justify-content:center;}
+
   /* とんでいく♪ */
   .spark{
     position:absolute; z-index:9; pointer-events:none;
@@ -162,6 +182,7 @@
   <button id="octPlus" aria-label="たかい おと"><span class="lbl">たかい ▶</span></button>
   <button id="inst"><span class="lbl"><span class="k">がっき</span>ピアノ</span></button>
   <button id="names"><span class="lbl"><span class="k">なまえ</span>ひらがな</span></button>
+  <button id="song"><span class="lbl"><span class="k">おてほん</span>なし</span></button>
   <button id="lock" class="icon" aria-label="ボタンを ロック"><span class="lbl">🔒</span></button>
   <button id="full" class="icon" aria-label="ぜんがめん"><span class="lbl">⛶</span></button>
 </div>
@@ -194,12 +215,39 @@ const state = {
   octaves    : 2,
   inst       : 0,
   names      : 0,       // 0:ひらがな 1:ABC 2:なし
+  song       : 0,       // 0:なし 1:ちょうちょ
   locked     : false
 };
 
+/* ---- おてほん の きょく ----
+ * ど=0 から かぞえた たかさ（はんおん）で かいて ある。
+ * ど0 れ2 み4 ふぁ5 そ7
+ */
+const SONGS = [
+  {name:'なし', notes:[]},
+  {name:'ちょうちょ', notes:[
+    // ちょうちょう ちょうちょう / なのはに とまれ
+    7,4,4,  5,2,2,  0,2,4,5,7,7,7,
+    // なのはに あいたら / さくらに とまれ
+    7,4,4,  5,2,2,  0,4,7,7,4,
+    // さくらの はなの / はなから はなへ
+    2,2,2,2,  2,4,5,   4,4,4,4,  4,5,7,
+    // とまれよ あそべ / あそべよ とまれ
+    7,4,4,  5,2,2,  0,4,7,7,4
+  ]}
+];
+let songPos = 0;
+
+/* つぎに おす けん（MIDI ばんごう）。おてほん が なし なら null */
+function nextNote(){
+  const song = SONGS[state.song];
+  if(!song || !song.notes.length) return null;
+  return 12 * (state.baseOctave + 1) + song.notes[songPos];
+}
+
 /* このファイルの ばんごう。けんばん の ひだりした に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v15';
+const VERSION = 'v16';
 
 /* ================================================================== *
  * おとの エンジン
@@ -519,6 +567,43 @@ function build(){
   v.id = 'ver';
   v.textContent = VERSION;
   piano.appendChild(v);
+
+  updateMark();
+}
+
+/* おてほん の マークを つけなおす */
+function updateMark(){
+  piano.querySelectorAll('.mark').forEach(e => e.remove());
+  piano.querySelectorAll('.next').forEach(e => e.classList.remove('next'));
+
+  const midi = nextNote();
+  if(midi === null) return;
+  const el = keyEls.get(midi);
+  if(!el) return;                       // いま でて いない たかさ の とき
+
+  el.classList.add('next');
+  const size = clamp(el.clientHeight * 0.8, 20, 46);
+  const m = document.createElement('div');
+  m.className = 'mark';
+  m.style.width  = size + 'px';
+  m.style.height = size + 'px';
+  m.style.fontSize = (size * 0.62) + 'px';
+  m.textContent = '★';
+  const badge = el.querySelector('.badge');
+  if(badge) el.insertBefore(m, badge);       // かお の あった ばしょ に いれる
+  else      el.appendChild(m);               // くろい けん の とき
+}
+
+/* きょくが さいごまで いった とき */
+function songClear(){
+  songPos = 0;
+  const els = [...keyEls.values()];
+  els.forEach((el, i) => setTimeout(() => {
+    el.classList.add('on');
+    setTimeout(() => el.classList.remove('on'), 220);
+  }, i * 35));
+  for(let i = 0; i < 6; i++)
+    setTimeout(() => spark(els[Math.floor(Math.random() * els.length)]), i * 90);
 }
 
 /* ------------------------------------------------------------------ *
@@ -540,6 +625,13 @@ function press(id, midi){
   const el = keyEls.get(midi);
   if(el){ el.classList.add('on'); spark(el); }
   noteOn(midi);
+
+  // おてほん：マークの けん を おせたら つぎへ すすむ
+  if(midi === nextNote()){
+    songPos++;
+    if(songPos >= SONGS[state.song].notes.length) songClear();
+    updateMark();
+  }
 }
 function release(id){
   const midi = pointers.get(id);
@@ -593,6 +685,7 @@ function refresh(){
   lbl('octCount', '<span class="k">おとのかず</span>' + state.octaves + 'オクターブ');
   lbl('inst',     '<span class="k">がっき</span>' + INSTS[state.inst]);
   lbl('names',    '<span class="k">なまえ</span>' + ['ひらがな','ABC','なし'][state.names]);
+  lbl('song',     '<span class="k">おてほん</span>' + SONGS[state.song].name);
   document.body.classList.toggle('names-off', state.names === 2);
   $('octMinus').disabled = state.baseOctave <= 1;
   $('octPlus').disabled  = state.baseOctave + state.octaves >= 8;
@@ -606,6 +699,8 @@ $('octMinus').onclick = () => { if(state.baseOctave > 1){ state.baseOctave--; al
 $('octPlus').onclick  = () => { if(state.baseOctave + state.octaves < 8){ state.baseOctave++; allOff(); refresh(); } };
 $('inst').onclick     = () => { allOff(); state.inst = (state.inst + 1) % INSTS.length; unlock(); refresh(); };
 $('names').onclick    = () => { state.names = (state.names + 1) % 3; refresh(); };
+$('song').onclick     = () => { state.song = (state.song + 1) % SONGS.length;
+                                songPos = 0; refresh(); };
 $('lock').onclick     = () => { state.locked = !state.locked;
                                 $('lock').classList.toggle('on', state.locked);
                                 $('lock').querySelector('.lbl').textContent = state.locked ? '🔓' : '🔒';
@@ -624,7 +719,7 @@ if(!(document.documentElement.requestFullscreen || document.documentElement.webk
 
 function save(){
   try{ localStorage.setItem('doremi', JSON.stringify(
-    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names})); }catch(e){}
+    {baseOctave:state.baseOctave, octaves:state.octaves, inst:state.inst, names:state.names, song:state.song})); }catch(e){}
 }
 try{
   const s = JSON.parse(localStorage.getItem('doremi') || 'null');
