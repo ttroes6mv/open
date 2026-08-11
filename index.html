@@ -154,25 +154,22 @@ const state = {
   names      : 0,       // 0:ひらがな 1:ABC 2:なし
   locked     : false
 };
-const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
 
 /* ================================================================== *
- * おとの エンジン
- *   ・ばいおん を 40ぽん まで まとめた はけい（PeriodicWave）を 3つの たいいき に わけ、
- *     たいいき ごとに きえる はやさ を かえる（たかい ばいおん ほど はやく きえる）
- *   ・ピアノは わずかに ずれた ふくすうの げん ＋ ハンマーの おと
- *   ・さいごに EQ（ひくい にごり を カット、たかい ほうを もちあげ）と
- *     かるい リバーブ を とおす
+ * おとの エンジン（シンプルな でんしおん）
+ *   ・がっき ごとに きめた ばいおん の わりあい を もつ はけい を 1つ つくり、
+ *     オシレーター 1つ ＋ おんりょうカーブ 1つ で ならす
+ *   ・よけいな しょり を いれない ぶん、すっきり した おと に なる
  * ================================================================== */
-let ctx = null, bus = null, master = null, noiseBuf = null;
+let ctx = null, bus = null, master = null;
 
 function audio(){
   if(ctx) return ctx;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-  // ---- リミッター（おとが われないように） ----
+  // おとが われない ように ピークだけ おさえる
   const limiter = ctx.createDynamicsCompressor();
-  limiter.threshold.value = -3;      // ピークだけ おさえる（ふだんは かからない）
+  limiter.threshold.value = -3;
   limiter.knee.value      = 6;
   limiter.ratio.value     = 20;
   limiter.attack.value    = 0.002;
@@ -180,57 +177,14 @@ function audio(){
   limiter.connect(ctx.destination);
 
   master = ctx.createGain();
-  master.gain.value = 2.4;
+  master.gain.value = 0.85;
   master.connect(limiter);
-
-  // ---- おとを クリアに する ための EQ ----
-  // ① 100Hz より したの ゴロゴロ を カット
-  const hp = ctx.createBiquadFilter();
-  hp.type = 'highpass'; hp.frequency.value = 110; hp.Q.value = 0.7;
-  // ② 300Hz あたりの もこもこ を へらす
-  const mud = ctx.createBiquadFilter();
-  mud.type = 'peaking'; mud.frequency.value = 300; mud.Q.value = 1.0; mud.gain.value = -4.5;
-  // ③ 3.5kHz から うえを もちあげて きらきら させる
-  const air = ctx.createBiquadFilter();
-  air.type = 'highshelf'; air.frequency.value = 3000; air.gain.value = 5;
-  hp.connect(mud); mud.connect(air); air.connect(master);
-
-  // ---- リバーブ（へやの ひびき／ひくい おとには かけない） ----
-  const conv = ctx.createConvolver();
-  conv.buffer = makeIR(1.5, 3.2);
-  const revHp = ctx.createBiquadFilter();
-  revHp.type = 'highpass'; revHp.frequency.value = 700;   // 低音を ひびかせると にごる
-  const wet = ctx.createGain();
-  wet.gain.value = 0.13;
-  revHp.connect(conv); conv.connect(wet); wet.connect(master);
 
   bus = ctx.createGain();
   bus.gain.value = 1;
-  bus.connect(hp);
-  bus.connect(revHp);
-
-  // ハンマーの おと につかう ノイズ
-  const len = Math.floor(ctx.sampleRate * 0.25);
-  noiseBuf = ctx.createBuffer(1, len, ctx.sampleRate);
-  const nd = noiseBuf.getChannelData(0);
-  for(let i = 0; i < len; i++) nd[i] = Math.random() * 2 - 1;
+  bus.connect(master);
 
   return ctx;
-}
-
-/* インパルスレスポンスを その場で つくる（おんげんファイル不要） */
-function makeIR(dur, decay){
-  const rate = ctx.sampleRate, len = Math.floor(rate * dur);
-  const buf = ctx.createBuffer(2, len, rate);
-  for(let ch = 0; ch < 2; ch++){
-    const d = buf.getChannelData(ch);
-    for(let i = 0; i < len; i++){
-      const t = i / len;
-      const fadeIn = 1 - Math.exp(-i / (rate * 0.006));   // あたまを やわらかく
-      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - t, decay) * fadeIn * 0.7;
-    }
-  }
-  return buf;
 }
 
 function unlock(){
@@ -241,82 +195,30 @@ function unlock(){
   b.connect(master); b.start(0);
 }
 
-/* ---- ばいおん を まとめた はけい を つくる ----
- * サイン波を 1ぽんずつ ならべる やりかた だと ばいおん の かず に かぎりが あり、
- * たかい ばいおん が たりなく なって こもった おと に なる。
- * PeriodicWave なら ばいおん を 40ぽん でも オシレーター 1つ で だせて、
- * しかも ブラウザが かってに おりかえし（エイリアス）を ふせいで くれる。
+/* ---- がっき（ばいおん の わりあい だけ で きめる） ----
+ * harm[0] が きほんの おと、harm[1] が 2ばい、harm[2] が 3ばい… の おおきさ。
+ * dec … おとが きえるまでの びょうすう（60 は まんなかの ド）
+ * hold … true なら おしている あいだ ずっと なる
  */
-const waveCache = {};
-function wave(key, from, to, ampFn){
-  if(waveCache[key]) return waveCache[key];
-  const re = new Float32Array(to + 1), im = new Float32Array(to + 1);
-  for(let n = from; n <= to; n++){
-    const a  = ampFn(n);
-    const ph = n * 2.39996;              // いちを ばらけさせて とがった はけい に しない
-    re[n] = a * Math.cos(ph);
-    im[n] = a * Math.sin(ph);
-  }
-  const w = ctx.createPeriodicWave(re, im, {disableNormalization:true});
-  waveCache[key] = w;
-  return w;
-}
-function sumAmp(from, to, ampFn){
-  let s = 0;
-  for(let n = from; n <= to; n++) s += ampFn(n);
-  return s;
-}
+const INSTS = ['ピアノ','オルガン','ベル','マリンバ'];
+const VOICE = [
+  { harm:[1, 0.50, 0.26, 0.13, 0.07, 0.03],       // でんしピアノ
+    atk:0.004, dec:2.4, decSlope:30, hold:false, rel:0.09, cut:6500, level:1.00 },
+  { harm:[1, 0.55, 0.32, 0.36, 0, 0.18, 0, 0.10], // オルガン
+    atk:0.020, dec:0,   decSlope:0,  hold:true,  rel:0.08, cut:7000, level:0.62 },
+  { harm:[1, 0, 0.45, 0, 0.22, 0, 0, 0.08],       // ベル
+    atk:0.002, dec:2.8, decSlope:26, hold:false, rel:0.25, cut:9000, level:0.95 },
+  { harm:[1, 0, 0, 0.32, 0, 0, 0, 0.06],          // マリンバ
+    atk:0.002, dec:0.55, decSlope:24, hold:false, rel:0.07, cut:8000, level:1.30 }
+];
 
-/* ---- がっき ごとの おと の せっけい ---- */
-const PIANO_H = n => Math.pow(n, -0.85) * (n % 2 ? 1 : 0.82);
-const ORGAN_T = {1:1, 2:0.6, 3:0.5, 4:0.35, 6:0.22, 8:0.15, 10:0.1, 12:0.07, 16:0.04};
-const ORGAN_H = n => ORGAN_T[n] || 0;
-
-function spec(inst, midi){
-  const f = freqOf(midi);
-  const bands = [];
-
-  if(inst === 0){            // ピアノ
-    const base = clamp(6.5 * Math.pow(0.5, (midi - 33) / 24), 0.8, 4.5);
-    // ひくい ばいおん は ながく のこり、たかい ばいおん ほど はやく きえる
-    bands.push({wave:wave('pLo',  1,  6, PIANO_H), a:1,    d:base});
-    bands.push({wave:wave('pLo',  1,  6, PIANO_H), a:0.42, d:base * 0.95, detune:2.2}); // となりの げん
-    // げんの かたさ で たかい ばいおん は すこし うわずる（ピアノ らしい きらめき）
-    bands.push({wave:wave('pMid', 7, 16, PIANO_H), a:1,    d:base * 0.34, detune:4});
-    bands.push({wave:wave('pHi', 17, 40, PIANO_H), a:1,    d:base * 0.13, detune:14});
-    return {bands:bands, sum:sumAmp(1, 40, PIANO_H) * 1.42,
-            atk:0.005, hold:false, noise:0.10, rel:0.10, level:1.0};
-  }
-
-  if(inst === 1){            // オルガン（おしている あいだ のびる）
-    bands.push({wave:wave('org', 1, 16, ORGAN_H), a:1,   d:0});
-    bands.push({wave:wave('org', 1, 16, ORGAN_H), a:0.5, d:0, detune:3});  // すこし ずらして あつく
-    return {bands:bands, sum:sumAmp(1, 16, ORGAN_H) * 1.5,
-            atk:0.026, hold:true, noise:0.02, rel:0.10, level:0.50};
-  }
-
-  if(inst === 2){            // ベル（ばいおん が せいすう倍で ない）
-    const base = clamp(5.0 * Math.pow(0.5, (midi - 60) / 34), 1.0, 5);
-    let sum = 0;
-    [[0.56,0.55],[0.92,0.6],[1.19,0.55],[1.71,0.42],[2.0,0.36],[2.74,0.3],
-     [3.0,0.24],[3.76,0.2],[4.07,0.17],[5.43,0.12],[6.8,0.09],[8.2,0.06]]
-      .forEach(([r, a], i) => {
-        if(f * r > 17000) return;
-        sum += a;
-        bands.push({ratio:r, a:a, d:base * (1 - i * 0.06)});
-      });
-    return {bands:bands, sum:sum, atk:0.002, hold:false, noise:0.05, rel:0.30, level:1.25};
-  }
-
-  // マリンバ（きの ばん の モード）
-  const base = clamp(1.4 * Math.pow(0.5, (midi - 60) / 30), 0.25, 1.6);
-  let sum = 0;
-  [[1,1,1],[3.932,0.5,0.32],[9.538,0.22,0.14],[16.688,0.1,0.08]].forEach(([r, a, dm]) => {
-    if(f * r > 17000) return;
-    sum += a;
-    bands.push({ratio:r, a:a, d:base * dm});
-  });
-  return {bands:bands, sum:sum, atk:0.002, hold:false, noise:0.08, rel:0.08, level:1.5};
+const waveCache = [];
+function waveOf(i){
+  if(waveCache[i]) return waveCache[i];
+  const h  = VOICE[i].harm;
+  const re = new Float32Array(h.length + 1), im = new Float32Array(h.length + 1);
+  h.forEach((a, n) => { im[n + 1] = a; });        // すべて サイン波 の いち で そろえる
+  return (waveCache[i] = ctx.createPeriodicWave(re, im, {disableNormalization:true}));
 }
 
 const voices = new Map();     // midi -> voice
@@ -326,74 +228,42 @@ function noteOn(midi){
   const c = audio();
   if(c.state === 'suspended') c.resume();
   if(voices.has(midi)) noteOff(midi, 0.02);
-
   if(voices.size >= MAX_VOICES) noteOff(voices.keys().next().value, 0.05);
 
-  const s = spec(state.inst, midi);
+  const v = VOICE[state.inst];
   const t = c.currentTime + 0.002;
+  const f = freqOf(midi);
+  const sum = v.harm.reduce((a, b) => a + b, 0);
+
+  const osc = c.createOscillator();
+  osc.setPeriodicWave(waveOf(state.inst));
+  osc.frequency.setValueAtTime(f, t);
+
+  // たかい おとが きつく ならない ように かるく フタ を する
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = clamp(v.cut, f * 4, 16000);
+  lp.Q.value = 0.4;
 
   const g = c.createGain();
-  // ぜんぶの ばいおん を たしても おおきく なりすぎない ように ならす
-  const peak = 0.30 * s.level / (s.sum || 1)
-             * Math.pow(2, -(midi - 60) / 70)          // たかい おとは すこし ちいさく
-             * (0.94 + Math.random() * 0.12);          // まいかい ほんの すこし ちがう
-  g.gain.setValueAtTime(peak, t);
+  const peak = 0.55 * v.level / sum * Math.pow(2, -(midi - 60) / 60);
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.linearRampToValueAtTime(peak, t + v.atk);
 
-  let tail = g;
-  if(c.createStereoPanner){                            // おとの たかさで ひだり/みぎ に ひろげる
-    const pan = c.createStereoPanner();
-    pan.pan.value = clamp((midi - 60) / 24, -1, 1) * 0.32;
-    g.connect(pan); pan.connect(bus);
-    tail = pan;
+  let stopAt;
+  if(v.hold){
+    stopAt = t + 3600;
   }else{
-    g.connect(bus);
+    // ひくい おと ほど ながく のびる
+    const dec = clamp(v.dec * Math.pow(0.5, (midi - 60) / v.decSlope), 0.25, 6);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + v.atk + dec);
+    stopAt = t + v.atk + dec + 0.05;
   }
 
-  const oscs = s.bands.map(p => {
-    const o  = c.createOscillator();
-    const pg = c.createGain();
-    if(p.wave) o.setPeriodicWave(p.wave);         // ばいおん を まとめた はけい
-    else       o.type = 'sine';                   // ベル・マリンバ は 1つずつ
-    o.frequency.setValueAtTime(freqOf(midi) * (p.ratio || 1), t);
-    if(p.detune) o.detune.setValueAtTime(p.detune, t);
-    pg.gain.setValueAtTime(0.0001, t);
-    pg.gain.linearRampToValueAtTime(p.a, t + s.atk);
-    if(!s.hold) pg.gain.exponentialRampToValueAtTime(0.0001, t + s.atk + p.d);
-    o.connect(pg); pg.connect(g);
-    o.start(t);
-    o.stop(t + (s.hold ? 3600 : s.atk + p.d + 0.15));
-    return o;
-  });
+  osc.connect(lp); lp.connect(g); g.connect(bus);
+  osc.start(t); osc.stop(stopAt);
 
-  // ハンマー／ばち が あたる おと
-  if(s.noise){
-    const src = c.createBufferSource(), bp = c.createBiquadFilter(), ng = c.createGain();
-    src.buffer = noiseBuf;
-    bp.type = 'highpass';                        // たかい ほうだけ のこすと あたま が はっきり する
-    bp.frequency.value = clamp(freqOf(midi) * 3, 1200, 6000);
-    bp.Q.value = 0.7;
-    ng.gain.setValueAtTime(s.noise, t);
-    ng.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-    src.connect(bp); bp.connect(ng); ng.connect(g);
-    src.start(t); src.stop(t + 0.12);
-  }
-
-  voices.set(midi, {g:g, oscs:oscs, rel:s.rel, tail:tail});
-}
-
-function noteOff(midi, forceRel){
-  const v = voices.get(midi);
-  if(!v) return;
-  voices.delete(midi);
-  const c = audio(), t = c.currentTime;
-  const rel = forceRel || v.rel;
-  try{
-    if(v.g.gain.cancelAndHoldAtTime) v.g.gain.cancelAndHoldAtTime(t);
-    else v.g.gain.cancelScheduledValues(t);
-    v.g.gain.setTargetAtTime(0.0001, t, rel / 3);      // ダンパーが そっと おさえる
-  }catch(e){}
-  v.oscs.forEach(o => { try{ o.stop(t + rel + 0.05); }catch(e){} });
-  setTimeout(() => { try{ v.tail.disconnect(); v.g.disconnect(); }catch(e){} }, (rel + 0.3) * 1000);
+  voices.set(midi, {g:g, oscs:[osc], rel:v.rel, tail:g});
 }
 
 function allOff(){ [...voices.keys()].forEach(m => noteOff(m, 0.05)); }
