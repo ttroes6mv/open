@@ -362,7 +362,7 @@ function nextNote(){
 
 /* このファイルの ばんごう。けんばん の ひだりした に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v19';
+const VERSION = 'v20';
 
 /* ================================================================== *
  * おとの エンジン
@@ -828,6 +828,23 @@ document.addEventListener('gesturechange', e => e.preventDefault());
 document.addEventListener('dblclick', e => e.preventDefault());
 document.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('blur', () => { [...pointers.keys()].forEach(release); allOff(); });
+
+/* ページ を はなれる とき は おと の エンジン を きちんと とじる。
+   iPad は「もどる」用に ページ を いかした まま に する ことが あり、
+   そのとき おと の エンジン も のこって しまう。のこった まま だと
+   つぎ に ひらいた ページ の おと が でなく なる（iOS の きまり で
+   ひとつ の タブ で つくれる エンジン の かず に かぎり が ある）。 */
+window.addEventListener('pagehide', () => {
+  allOff();
+  if(ctx){
+    const c = ctx;
+    ctx = null; bus = null; master = null;
+    try{ c.close(); }catch(e){}
+  }
+});
+/* いかした まま の ページ に もどって きた ときは、
+   まっさら に よみなおして おと を つくりなおす */
+window.addEventListener('pageshow', e => { if(e.persisted) location.reload(); });
 
 /* ------------------------------------------------------------------ *
  * ボタン

@@ -214,7 +214,7 @@
     </div>
   </div>
 
-  <div id="ver">v2</div>
+  <div id="ver">v3</div>
 </div>
 
 <script>
@@ -223,7 +223,7 @@
 
 /* このファイルの ばんごう。かえた のに ここが かわらない ときは
    ブラウザ が キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v2';
+const VERSION = 'v3';
 
 const W = 960, H = 540;                 /* ステージ の おおきさ（ろんり） */
 const $ = id => document.getElementById(id);
@@ -1427,6 +1427,19 @@ $('calPlus').onclick  = () => { offsetMs = clamp(offsetMs + 10, -200, 200);
 })();
 
 window.addEventListener('blur', () => { if(scene === 'play'){ stopAll(); toMenu(); } });
+
+/* ページ を はなれる とき は おと の エンジン を きちんと とじる。
+   iPad は「もどる」用に ページ を いかした まま に する ことが あり、
+   のこった エンジン が つぎ の ページ（ピアノ）の おと を とめて しまう。 */
+window.addEventListener('pagehide', () => {
+  stopAll();
+  if(AC){
+    const c = AC;
+    AC = null; master = null; musicG = null; sfxG = null; noiseBuf = null;
+    try{ c.close(); }catch(e){}
+  }
+});
+window.addEventListener('pageshow', e => { if(e.persisted) location.reload(); });
 
 $('ver').textContent = VERSION;
 showUI(true);                       /* さいしょ は メニュー なので canvas は やすみ */
