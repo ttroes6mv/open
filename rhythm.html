@@ -1,0 +1,1392 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#25b3e8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>リズムで ポン！</title>
+<style>
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0;
+    position:fixed; inset:0;
+    width:100%; height:100%;
+    overflow:hidden;
+    overscroll-behavior:none;
+    touch-action:none;
+    background:#0f1930;
+  }
+  body{
+    font-family:"Hiragino Maru Gothic ProN","Hiragino Sans",-apple-system,"Segoe UI",sans-serif;
+    color:#fff;
+    -webkit-user-select:none; user-select:none;
+    -webkit-touch-callout:none;
+  }
+
+  /* ===== ステージ =====
+     なかみは いつも 960x540（よこむき）。がめんが たてむき の ときは
+     ステージ ごと 90ど ひだり に まわす ので、かいてんロック が ON でも
+     ほんたい を とけいまわり に たおせば よこむき で あそべる。 */
+  #stage{
+    position:absolute; left:0; top:0;
+    width:960px; height:540px;
+    transform-origin:0 0;
+    overflow:hidden;
+    background:#7fd8ff;
+  }
+  #cv{position:absolute; left:0; top:0; width:960px; height:540px;}
+
+  /* ===== がめん（メニュー / けっか）===== */
+  .screen{
+    position:absolute; inset:0;
+    display:none;
+    flex-direction:column; align-items:center; justify-content:center;
+    gap:10px;
+    padding:16px 24px;
+  }
+  .screen.on{display:flex;}
+
+  h1{
+    margin:0 0 2px;
+    font-size:52px; line-height:1;
+    color:#fff;
+    text-shadow:0 4px 0 #1b6ea8, 0 8px 18px rgba(0,0,0,.35);
+    letter-spacing:2px;
+  }
+  .sub{margin:0 0 6px; font-size:17px; color:#f4feff; text-shadow:0 2px 4px rgba(0,0,0,.35);}
+
+  .menuRow{display:flex; gap:12px; align-items:stretch; justify-content:center; flex-wrap:nowrap;}
+
+  button{
+    font:inherit; font-weight:700;
+    color:#25405c; background:#fff;
+    border:none; border-radius:16px;
+    padding:12px 18px;
+    box-shadow:0 5px 0 rgba(0,0,0,.22);
+    touch-action:none;
+    line-height:1.25;
+  }
+  button:active{transform:translateY(3px); box-shadow:0 2px 0 rgba(0,0,0,.22);}
+
+  .song{
+    min-width:210px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    padding:14px 18px 12px;
+  }
+  .song .big{font-size:25px; white-space:nowrap;}
+  .song .lv{font-size:15px; color:#fff; background:#2aa7e0; border-radius:999px; padding:2px 12px;}
+  .song .best{font-size:13px; color:#7a8b9c;}
+  .song.s2 .lv{background:#f0a020;}
+  .song.s3 .lv{background:#ef4d6a;}
+  .song.mane{min-width:320px;}
+  .song.mane .lv{background:#8b5cf6;}
+
+  .mini{font-size:16px; padding:9px 16px; border-radius:999px;}
+  .mini.ghost{background:rgba(255,255,255,.85);}
+
+  #calib{display:flex; align-items:center; gap:8px; font-size:15px;
+         background:rgba(0,0,0,.22); padding:6px 10px; border-radius:999px;}
+  #calib button{padding:5px 12px; font-size:16px; border-radius:999px; box-shadow:0 3px 0 rgba(0,0,0,.22);}
+  #calibVal{min-width:74px; text-align:center; font-weight:700;}
+
+  /* ===== あそんでいる ときの すみっこ ボタン ===== */
+  #corner{
+    position:absolute; right:10px; top:10px;
+    display:none; gap:8px; z-index:6;
+  }
+  #corner.on{display:flex;}
+  #corner button{
+    font-size:15px; padding:7px 14px; border-radius:999px;
+    background:rgba(255,255,255,.9);
+  }
+
+  /* ===== けっか ===== */
+  #stars{font-size:64px; line-height:1; letter-spacing:6px; text-shadow:0 4px 10px rgba(0,0,0,.35);}
+  #rank{font-size:40px; margin:2px 0 0; text-shadow:0 3px 0 #1b6ea8;}
+  #detail{font-size:19px; background:rgba(0,0,0,.28); padding:8px 20px; border-radius:14px;}
+  #newbest{font-size:18px; color:#ffe14d; height:22px;}
+
+  /* バージョン（ふるい ファイル を みて いない か たしかめる ため） */
+  #ver{
+    position:absolute; left:8px; bottom:6px; z-index:8; pointer-events:none;
+    font-size:12px; font-weight:700; color:#fff; opacity:.5;
+  }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <canvas id="cv" width="960" height="540"></canvas>
+
+  <div id="corner">
+    <button id="btnQuit">やめる</button>
+  </div>
+
+  <div class="screen on" id="menu">
+    <h1>リズムで ポン！</h1>
+    <p class="sub">おんがく に あわせて、がめん を ポン！ と おそう</p>
+    <div class="menuRow">
+      <button class="song s1" data-song="0">
+        <span class="lv">やさしい</span>
+        <span class="big">ポンポン たいそう</span>
+        <span class="best" id="best0">さいこう てん ―</span>
+      </button>
+      <button class="song s2" data-song="1">
+        <span class="lv">ふつう</span>
+        <span class="big">はやおし マーチ</span>
+        <span class="best" id="best1">さいこう てん ―</span>
+      </button>
+      <button class="song s3" data-song="2">
+        <span class="lv">むずかしい</span>
+        <span class="big">おまつり ドンドン</span>
+        <span class="best" id="best2">さいこう てん ―</span>
+      </button>
+    </div>
+    <div class="menuRow">
+      <button class="song mane" data-song="3">
+        <span class="lv">まねっこ</span>
+        <span class="big">まねして ポン</span>
+        <span class="best" id="best3">さいこう てん ―</span>
+      </button>
+    </div>
+    <div class="menuRow">
+      <div id="calib">
+        <span>おとの ずれ</span>
+        <button id="calMinus">◀</button>
+        <span id="calibVal">0 ms</span>
+        <button id="calPlus">▶</button>
+      </div>
+      <button class="mini ghost" id="btnPiano">🎹 ピアノ に もどる</button>
+      <button class="mini ghost" id="btnFull">⛶</button>
+    </div>
+  </div>
+
+  <div class="screen" id="result">
+    <div id="stars">★★★</div>
+    <h2 id="rank">かんぺき！</h2>
+    <div id="detail">てん 0 ／ ばっちり 0 ・ いいね 0 ・ ミス 0</div>
+    <div id="newbest"></div>
+    <div class="menuRow">
+      <button class="mini" id="btnRetry">もう いちど</button>
+      <button class="mini ghost" id="btnMenu">きょく を えらぶ</button>
+    </div>
+  </div>
+
+  <div id="ver">v1</div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* このファイルの ばんごう。かえた のに ここが かわらない ときは
+   ブラウザ が キャッシュ（ふるい ファイル）を みている。 */
+const VERSION = 'v1';
+
+const W = 960, H = 540;                 /* ステージ の おおきさ（ろんり） */
+const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => v < lo ? lo : (v > hi ? hi : v);
+const lerp  = (a, b, t) => a + (b - a) * t;
+
+/* ================================================================== *
+ * がめん の おおきさ あわせ
+ *   よこむき … そのまま かくだい
+ *   たてむき … 90ど ひだり に まわして かくだい
+ *              （ほんたい を とけいまわり に たおすと まっすぐ）
+ * ================================================================== */
+const stageEl = $('stage');
+
+function fit(){
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if(vw >= vh){
+    const s = Math.min(vw / W, vh / H);
+    const tx = (vw - W * s) / 2, ty = (vh - H * s) / 2;
+    stageEl.style.transform = 'translate(' + tx + 'px,' + ty + 'px) scale(' + s + ')';
+  }else{
+    const s = Math.min(vw / H, vh / W);
+    const tx = (vw - H * s) / 2, ty = (vh - W * s) / 2 + W * s;
+    stageEl.style.transform =
+      'translate(' + tx + 'px,' + ty + 'px) rotate(-90deg) scale(' + s + ')';
+  }
+}
+window.addEventListener('resize', fit);
+window.addEventListener('orientationchange', () => setTimeout(fit, 300));
+fit();
+
+/* キャンバス を こまかく（Retina たいおう） */
+const cv = $('cv');
+const g  = cv.getContext('2d');
+(function setupCanvas(){
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  cv.width  = W * dpr;
+  cv.height = H * dpr;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+})();
+
+/* ================================================================== *
+ * おと の エンジン（ぜんぶ その ばで つくる。おんげんファイル なし）
+ * ================================================================== */
+let AC = null, master = null, musicG = null, sfxG = null, noiseBuf = null;
+
+function initAudio(){
+  if(AC) return AC;
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+
+  const lim = AC.createDynamicsCompressor();
+  lim.threshold.value = -6;
+  lim.knee.value      = 8;
+  lim.ratio.value     = 16;
+  lim.attack.value    = 0.003;
+  lim.release.value   = 0.15;
+  lim.connect(AC.destination);
+
+  master = AC.createGain(); master.gain.value = 0.9;  master.connect(lim);
+  musicG = AC.createGain(); musicG.gain.value = 0.75; musicG.connect(master);
+  sfxG   = AC.createGain(); sfxG.gain.value   = 1.0;  sfxG.connect(master);
+
+  const n = AC.createBuffer(1, Math.floor(AC.sampleRate * 0.7), AC.sampleRate);
+  const d = n.getChannelData(0);
+  for(let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  noiseBuf = n;
+
+  return AC;
+}
+
+/* iPad は「1かい さわる まで おとを ならさない」ので、さわった ときに よぶ */
+function unlock(){
+  const c = initAudio();
+  if(c.state === 'suspended') c.resume();
+  const s = c.createBufferSource();
+  s.buffer = c.createBuffer(1, 1, 22050);
+  s.connect(master); s.start(0);
+}
+
+const freqOf = m => 440 * Math.pow(2, (m - 69) / 12);
+
+/* たたく おと の おんりょう カーブ */
+function perc(gain, t, peak, dur, atk){
+  atk = atk || 0.003;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.exponentialRampToValueAtTime(Math.max(peak, 0.0002), t + atk);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + Math.max(dur, atk + 0.02));
+}
+
+/* ざつおん（ノイズ）を フィルター に とおして ならす */
+function noise(t, dur, o){
+  o = o || {};
+  const src = AC.createBufferSource(); src.buffer = noiseBuf;
+  const flt = AC.createBiquadFilter();
+  flt.type = o.type || 'highpass';
+  flt.frequency.setValueAtTime(o.freq || 6000, t);
+  if(o.freq2) flt.frequency.exponentialRampToValueAtTime(o.freq2, t + dur);
+  flt.Q.value = o.q || 1;
+  const gn = AC.createGain();
+  src.connect(flt); flt.connect(gn); gn.connect(o.out || musicG);
+  perc(gn, t, o.gain == null ? 0.3 : o.gain, dur, o.atk);
+  src.start(t); src.stop(t + dur + 0.05);
+}
+
+function kick(t, amp){
+  amp = amp == null ? 1 : amp;
+  const o = AC.createOscillator(), gn = AC.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(170, t);
+  o.frequency.exponentialRampToValueAtTime(45, t + 0.13);
+  perc(gn, t, 0.95 * amp, 0.30, 0.004);
+  o.connect(gn); gn.connect(musicG);
+  o.start(t); o.stop(t + 0.36);
+  noise(t, 0.025, {type:'lowpass', freq:1400, gain:0.18 * amp});
+}
+
+function snare(t, amp){
+  amp = amp == null ? 1 : amp;
+  noise(t, 0.16, {type:'bandpass', freq:1900, q:0.7, gain:0.34 * amp});
+  const o = AC.createOscillator(), gn = AC.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(210, t);
+  o.frequency.exponentialRampToValueAtTime(120, t + 0.09);
+  perc(gn, t, 0.28 * amp, 0.12, 0.003);
+  o.connect(gn); gn.connect(musicG);
+  o.start(t); o.stop(t + 0.16);
+}
+
+function hat(t, open, amp){
+  amp = amp == null ? 1 : amp;
+  noise(t, open ? 0.16 : 0.035, {type:'highpass', freq:7800, gain:(open ? 0.14 : 0.11) * amp});
+}
+
+function clap(t, amp){
+  amp = amp == null ? 1 : amp;
+  for(let i = 0; i < 3; i++)
+    noise(t + i * 0.012, 0.09, {type:'bandpass', freq:1300, q:1.2, gain:0.22 * amp});
+}
+
+/* たいこ（おまつり用） */
+function taiko(t, f, amp){
+  amp = amp == null ? 1 : amp;
+  const o = AC.createOscillator(), gn = AC.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(f * 1.9, t);
+  o.frequency.exponentialRampToValueAtTime(f, t + 0.09);
+  perc(gn, t, 0.6 * amp, 0.26, 0.004);
+  o.connect(gn); gn.connect(musicG);
+  o.start(t); o.stop(t + 0.32);
+  noise(t, 0.05, {type:'bandpass', freq:900, q:0.8, gain:0.16 * amp});
+}
+
+/* おんてい の ある おと（ベース と メロディ）
+   fm を つけると サイン波 を べつの サイン波 で ゆらして マリンバ風 に なる */
+function tone(t, midi, dur, o){
+  o = o || {};
+  const out = o.out || musicG;
+  const f = freqOf(midi);
+  const car = AC.createOscillator();
+  car.type = o.type || 'triangle';
+  car.frequency.setValueAtTime(f, t);
+
+  const gn = AC.createGain();
+  car.connect(gn);
+
+  let last = gn;
+  if(o.filter){
+    const bq = AC.createBiquadFilter();
+    bq.type = 'lowpass';
+    bq.frequency.setValueAtTime(o.filter, t);
+    bq.Q.value = 0.7;
+    gn.connect(bq); last = bq;
+  }
+  last.connect(out);
+
+  if(o.fm){
+    const mod = AC.createOscillator(), mg = AC.createGain();
+    mod.type = 'sine';
+    mod.frequency.setValueAtTime(f * o.fm, t);
+    mg.gain.setValueAtTime(f * (o.fmAmt || 1.6), t);
+    mg.gain.exponentialRampToValueAtTime(1, t + dur * 0.7);
+    mod.connect(mg); mg.connect(car.frequency);
+    mod.start(t); mod.stop(t + dur + 0.1);
+  }
+
+  const peak = o.gain == null ? 0.22 : o.gain;
+  if(o.sustain){
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    gn.gain.setValueAtTime(peak, t + dur * 0.75);
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  }else{
+    perc(gn, t, peak, dur, 0.006);
+  }
+  car.start(t); car.stop(t + dur + 0.14);
+}
+
+/* ---- こうか おん（さわった とき など。すぐ ならす）---- */
+function sfxLaunch(t){                       /* もの が とんで くる あいず */
+  noise(t, 0.22, {type:'bandpass', freq:500, freq2:2600, q:1.4, gain:0.2, out:sfxG});
+  tone(t, 72, 0.12, {type:'sine', gain:0.16, fm:2, fmAmt:1.2, out:sfxG});
+}
+function sfxHit(perfect){                    /* うまく たたけた */
+  const t = AC.currentTime;
+  const base = perfect ? 84 : 79;
+  tone(t, base,      0.28, {type:'sine', gain:0.30, fm:3.01, fmAmt:2.2, out:sfxG});
+  tone(t, base + 7,  0.34, {type:'sine', gain:0.20, fm:2.0,  fmAmt:1.4, out:sfxG});
+  if(perfect) tone(t + 0.06, base + 12, 0.30, {type:'sine', gain:0.18, fm:3, fmAmt:1.6, out:sfxG});
+  noise(t, 0.06, {type:'highpass', freq:4200, gain:0.22, out:sfxG});
+}
+function sfxMiss(){                          /* とりのがした */
+  const t = AC.currentTime;
+  const o = AC.createOscillator(), gn = AC.createGain();
+  o.type = 'square';
+  o.frequency.setValueAtTime(240, t);
+  o.frequency.exponentialRampToValueAtTime(90, t + 0.22);
+  perc(gn, t, 0.16, 0.24, 0.004);
+  o.connect(gn); gn.connect(sfxG);
+  o.start(t); o.stop(t + 0.3);
+}
+function sfxWhiff(){                         /* なにも ない ところで おした */
+  noise(AC.currentTime, 0.11, {type:'bandpass', freq:2600, q:0.6, gain:0.12, out:sfxG});
+}
+function sfxCount(n){                        /* よーい の カウント */
+  const t = AC.currentTime;
+  hat(t, false, 1.2);
+  tone(t, n >= 4 ? 84 : 76, 0.1, {type:'sine', gain:0.16, out:sfxG});
+}
+function sfxTeach(t){                         /* まねっこ：おてほん の おと */
+  taiko(t, 190, 1.0);
+  tone(t, 76, 0.2, {type:'sine', gain:0.14, fm:2, fmAmt:1.2});
+}
+function jingle(good){
+  const t = AC.currentTime;
+  const notes = good ? [72, 76, 79, 84] : [72, 71, 69, 67];
+  notes.forEach((m, i) =>
+    tone(t + i * 0.13, m, 0.5, {type:'sine', gain:0.26, fm:3, fmAmt:2, out:sfxG}));
+}
+
+/* ================================================================== *
+ * きょく の データ
+ *   ドラム … 16ぶんおんぷ 16こ の もじれつ（x が おと）
+ *   cues  … その しょうせつ で ★ を たたく タイミング（16ぶん の いち）
+ * ================================================================== */
+const E = [];                                  /* からっぽ の しょうせつ */
+
+const SONGS = [
+  /* ---------- 0 やさしい ---------- */
+  {
+    id:'pon1', name:'ポンポン たいそう', level:'やさしい', mode:1,
+    bpm:92, bars:20, sky:['#8fe0ff','#d9f6ff'], hill:'#66c96b',
+    drums:{
+      kick :'x.......x..x....',
+      snare:'....x.......x...',
+      hat  :'x.x.x.x.x.x.x.x.',
+      clap :'................'
+    },
+    bassFrom:0,
+    bass:[ /* 1しょうせつ ずつ ど→ふぁ→そ→ど */
+      [[0,36,4],[8,36,4],[12,43,4]],
+      [[0,41,4],[8,41,4],[12,48,4]],
+      [[0,43,4],[8,43,4],[12,50,4]],
+      [[0,36,4],[8,36,4],[12,43,4]]
+    ],
+    melFrom:2,
+    mel:[
+      [[0,76,2],[2,74,2],[4,72,4],[8,76,2],[10,79,2],[12,76,4]],
+      [[0,77,2],[2,76,2],[4,74,4],[8,77,4],[12,72,4]],
+      [[0,74,2],[2,71,2],[4,67,4],[8,74,2],[10,77,2],[12,74,4]],
+      [[0,72,4],[4,76,4],[8,72,8]]
+    ],
+    cues:[
+      E,E,
+      [0,8],[0,8],
+      [0,8],[0,4,8],
+      [0,8],[0,8,12],
+      [0,4,8],[0,8],
+      [0,8],[0,4,8,12],
+      [0,8],[0,8],
+      [0,4,8],[0,8,12],
+      [0,8],[0,4,8],
+      [0,8],E
+    ]
+  },
+
+  /* ---------- 1 ふつう ---------- */
+  {
+    id:'pon2', name:'はやおし マーチ', level:'ふつう', mode:1,
+    bpm:116, bars:24, sky:['#ffd98a','#fff3d0'], hill:'#7bc86c',
+    drums:{
+      kick :'x.......x.......',
+      snare:'....x.......x...',
+      hat  :'x.xxx.xxx.xxx.xx',
+      clap :'................'
+    },
+    bassFrom:0,
+    bass:[
+      [[0,36,4],[6,36,2],[8,43,4],[12,40,4]],
+      [[0,33,4],[6,33,2],[8,40,4],[12,45,4]],
+      [[0,41,4],[6,41,2],[8,48,4],[12,45,4]],
+      [[0,43,4],[6,43,2],[8,50,4],[12,47,4]]
+    ],
+    melFrom:2,
+    mel:[
+      [[0,72,2],[2,76,2],[4,79,4],[8,76,2],[10,72,2],[12,74,4]],
+      [[0,69,2],[2,72,2],[4,76,4],[8,72,2],[10,69,2],[12,71,4]],
+      [[0,77,2],[2,81,2],[4,77,4],[8,74,4],[12,72,4]],
+      [[0,74,2],[2,71,2],[4,74,2],[6,79,2],[8,78,8]]
+    ],
+    cues:[
+      E,E,
+      [0,8],[0,8,12],
+      [0,4,8],[0,8,10],
+      [0,8,12],[0,4,8,12],
+      [0,6,8],[0,8],
+      [0,4,8,12],[0,2,8,10],
+      [0,8],[0,6,8,14],
+      [0,4,8,12],[0,8,10,12],
+      [0,8],[0,4,6,8],
+      [0,8,12],[0,2,4,8],
+      [0,4,8,12],[0,8,14],
+      [0,8],E
+    ]
+  },
+
+  /* ---------- 2 むずかしい ---------- */
+  {
+    id:'pon3', name:'おまつり ドンドン', level:'むずかしい', mode:1,
+    bpm:134, bars:24, sky:['#ff9aa2','#ffe0c7'], hill:'#e05a67',
+    drums:{
+      kick :'x..x..x...x.x...',
+      snare:'....x.......x...',
+      hat  :'x.x.x.x.x.x.x.x.',
+      clap :'....x.......x..x'
+    },
+    bassFrom:0,
+    bass:[
+      [[0,33,2],[3,33,1],[6,40,2],[8,33,2],[12,38,4]],
+      [[0,33,2],[3,33,1],[6,40,2],[8,36,2],[12,40,4]],
+      [[0,38,2],[3,38,1],[6,45,2],[8,38,2],[12,41,4]],
+      [[0,40,2],[3,40,1],[6,47,2],[8,40,2],[12,43,4]]
+    ],
+    melFrom:2,
+    mel:[
+      [[0,69,2],[2,72,2],[4,74,2],[6,72,2],[8,69,4],[12,67,4]],
+      [[0,72,2],[2,74,2],[4,76,4],[8,74,2],[10,72,2],[12,69,4]],
+      [[0,77,2],[2,76,2],[4,74,2],[6,72,2],[8,74,4],[12,76,4]],
+      [[0,81,2],[2,79,2],[4,76,4],[8,74,2],[10,72,2],[12,69,4]]
+    ],
+    cues:[
+      E,E,
+      [0,4,8,12],[0,6,8,14],
+      [0,4,8,12],[0,2,8,10],
+      [0,6,8,12],[0,4,8,10,12],
+      [0,8],[0,2,4,8,12],
+      [0,6,8,14],[0,4,8,12],
+      [0,2,8,10],[0,4,6,8,12],
+      [0,8,10,12],[0,4,8,14],
+      [0,2,4,8,10],[0,6,8,12],
+      [0,4,8,12],[0,2,8,14],
+      [0,4,6,8,12],[0,8,10,12,14],
+      [0,4,8],E
+    ]
+  },
+
+  /* ---------- 3 まねっこ ---------- */
+  {
+    id:'mane', name:'まねして ポン', level:'まねっこ', mode:2,
+    bpm:104, bars:20, sky:['#c7b6ff','#f0eaff'], hill:'#8b6fd6',
+    drums:{
+      kick :'x.......x.......',
+      snare:'................',
+      hat  :'x.x.x.x.x.x.x.x.',
+      clap :'................'
+    },
+    bassFrom:0,
+    bass:[
+      [[0,40,6],[8,45,6]],
+      [[0,38,6],[8,43,6]],
+      [[0,36,6],[8,43,6]],
+      [[0,43,6],[8,47,6]]
+    ],
+    melFrom:100, mel:[[]],
+    /* おてほん の リズム（8ぶんおんぷ の いち = 0,2,4,...,14）*/
+    rounds:[
+      [0,4,8,12],
+      [0,8,12],
+      [0,2,4,8],
+      [0,4,6,12],
+      [0,2,8,10],
+      [0,4,8,10,12],
+      [0,2,4,6,8],
+      [0,4,6,8,12,14]
+    ]
+  }
+];
+
+/* ================================================================== *
+ * せってい の ほぞん
+ * ================================================================== */
+const store = {
+  get(k, d){ try{ const v = localStorage.getItem('rhythm.' + k); return v == null ? d : JSON.parse(v); }
+             catch(e){ return d; } },
+  set(k, v){ try{ localStorage.setItem('rhythm.' + k, JSON.stringify(v)); }catch(e){} }
+};
+let offsetMs = clamp(store.get('offset', 0), -200, 200);
+
+function refreshBest(){
+  SONGS.forEach((s, i) => {
+    const b = store.get('best.' + s.id, 0);
+    const el = $('best' + i);
+    if(el) el.textContent = b > 0 ? ('さいこう てん ' + b) : 'さいこう てん ―';
+  });
+  $('calibVal').textContent = (offsetMs > 0 ? '+' : '') + offsetMs + ' ms';
+}
+
+/* ================================================================== *
+ * ゲーム の じょうたい
+ * ================================================================== */
+const COUNTIN = 4;                 /* さいしょ の「よーい」1しょうせつ */
+const LEAD    = 2;                 /* もの が とんで くる はやさ（はくすう）*/
+
+let scene = 'menu';                /* menu / play / result */
+let song  = null;
+let spb   = 0.5;                   /* 1はく の びょうすう */
+let startT = 0;                    /* きょく の かいし じかん（AudioContext）*/
+let events = [], evIdx = 0, timer = null;
+let teachList = [], teachIdx = 0;  /* まねっこ の おてほん（ランプ を ひからせる ため）*/
+let objs = [], totalCues = 0;
+let stats = {perfect:0, good:0, miss:0, whiff:0};
+let score = 0, combo = 0, maxCombo = 0;
+let winPerfect = 0.09, winGood = 0.18, winLimit = 0.24;
+let endBeat = 0;
+
+/* えんしゅつ よう */
+let fx = [];                       /* はじけた かけら */
+let pops = [];                     /* 「ばっちり！」 などの もじ */
+let punchT = -9, faceT = -9, faceKind = 'happy';
+let lampFx = new Array(8).fill(-9);
+let lampWho = new Array(8).fill('');
+let teachFlash = -9;
+
+const nowT     = () => AC.currentTime;
+const beatTime = b => startT + b * spb;
+const nowBeat  = () => (AC.currentTime - startT) / spb;
+
+/* ================================================================== *
+ * きょく を くみたてる（ぜんぶ の おと の よてい ひょう を つくる）
+ * ================================================================== */
+function buildTimeline(s){
+  const ev = [], list = [];
+  spb = 60 / s.bpm;
+
+  /* 「よーい」の カウント */
+  for(let i = 0; i < COUNTIN; i++) ev.push({b:i, k:'count', n:i + 1});
+
+  const pat = (str, i) => str.charAt(i % str.length) === 'x';
+
+  for(let bar = 0; bar < s.bars; bar++){
+    const base = COUNTIN + bar * 4;
+    for(let st = 0; st < 16; st++){
+      const idx = bar * 16 + st;
+      const b = base + st / 4;
+      if(pat(s.drums.kick,  idx)) ev.push({b, k:'kick'});
+      if(pat(s.drums.snare, idx)) ev.push({b, k:'snare'});
+      if(pat(s.drums.hat,   idx)) ev.push({b, k:'hat'});
+      if(pat(s.drums.clap,  idx)) ev.push({b, k:'clap'});
+    }
+    if(bar >= s.bassFrom){
+      const ph = s.bass[(bar - s.bassFrom) % s.bass.length];
+      ph.forEach(n => ev.push({b:base + n[0] / 4, k:'bass', m:n[1], d:n[2] / 4}));
+    }
+    if(bar >= s.melFrom && s.mel.length){
+      const ph = s.mel[(bar - s.melFrom) % s.mel.length];
+      ph.forEach(n => ev.push({b:base + n[0] / 4, k:'mel', m:n[1], d:n[2] / 4}));
+    }
+  }
+
+  if(s.mode === 1){
+    /* とんで くる もの */
+    const kinds = ['ball', 'star', 'apple', 'rice'];
+    let k = 0;
+    for(let bar = 0; bar < s.bars; bar++){
+      const base = COUNTIN + bar * 4;
+      (s.cues[bar] || []).forEach(st => {
+        const hb = base + st / 4;
+        list.push({hitB:hb, kind:kinds[k++ % kinds.length], judged:null, spin:Math.random() * 6});
+        ev.push({b:hb - LEAD, k:'launch'});
+      });
+    }
+    endBeat = COUNTIN + s.bars * 4;
+  }else{
+    /* まねっこ：おてほん の しょうせつ → じぶん の しょうせつ */
+    s.rounds.forEach((pt, r) => {
+      const tBar = 2 + r * 2;               /* おてほん */
+      const pBar = tBar + 1;                /* じぶん */
+      pt.forEach(st => {
+        ev.push({b:COUNTIN + tBar * 4 + st / 4, k:'teach', lamp:st / 2});
+        list.push({hitB:COUNTIN + pBar * 4 + st / 4, lamp:st / 2, judged:null, round:r});
+      });
+      ev.push({b:COUNTIN + tBar * 4, k:'banner', text:'きいてね'});
+      ev.push({b:COUNTIN + pBar * 4, k:'banner', text:'まねしてね！'});
+    });
+    endBeat = COUNTIN + (2 + s.rounds.length * 2 + 1) * 4;
+  }
+
+  ev.sort((a, b) => a.b - b.b);
+  list.sort((a, b) => a.hitB - b.hitB);
+  events    = ev;
+  objs      = list;
+  totalCues = list.length;
+  teachList = ev.filter(e => e.k === 'teach');
+  teachIdx  = 0;
+
+  /* はんてい の はば は はやさ に あわせて せまく する */
+  winPerfect = Math.min(0.09, spb * 0.17);
+  winGood    = Math.min(0.18, spb * 0.33);
+  winLimit   = Math.min(0.24, spb * 0.44);
+}
+
+/* ================================================================== *
+ * えんそう（さきに よてい を いれて おく やりかた）
+ * ================================================================== */
+function playEvent(e){
+  const t = beatTime(e.b);
+  switch(e.k){
+    case 'count':  break;                       /* おとは tick で ならす */
+    case 'kick':   kick(t);                     break;
+    case 'snare':  song.id === 'pon3' ? taiko(t, 150) : snare(t); break;
+    case 'hat':    hat(t, false);               break;
+    case 'clap':   clap(t);                     break;
+    case 'bass':   tone(t, e.m, e.d * spb * 0.95,
+                        {type:'triangle', gain:0.26, filter:600, sustain:true}); break;
+    case 'mel':    tone(t, e.m, e.d * spb * 1.1,
+                        {type:'sine', gain:0.17, fm:3.0, fmAmt:1.8});            break;
+    case 'launch': sfxLaunch(t);                break;
+    case 'teach':  sfxTeach(t);                 break;
+    case 'banner': break;
+  }
+}
+
+function tick(){
+  if(scene !== 'play') return;
+  const ahead = AC.currentTime + 0.12;
+  while(evIdx < events.length && beatTime(events[evIdx].b) < ahead){
+    const e = events[evIdx++];
+    if(e.k === 'count'){
+      /* カウント は みじかい ので その ばで（ずれても きに ならない）*/
+      const wait = (beatTime(e.b) - AC.currentTime) * 1000;
+      setTimeout(() => { if(scene === 'play') sfxCount(e.n); }, Math.max(0, wait));
+    }else if(e.k === 'banner'){
+      const wait = (beatTime(e.b) - AC.currentTime) * 1000;
+      setTimeout(() => { if(scene === 'play') pops.push({text:e.text, t:nowT(), big:true}); },
+                 Math.max(0, wait));
+    }else{
+      playEvent(e);
+    }
+  }
+  if(nowBeat() > endBeat + 2) finish();
+}
+
+/* ================================================================== *
+ * はんてい
+ * ================================================================== */
+function judge(o, diff){
+  const ab = Math.abs(diff);
+  let kind;
+  if(ab <= winPerfect) kind = 'perfect';
+  else if(ab <= winGood) kind = 'good';
+  else kind = 'late';
+
+  o.judged = kind;
+  o.judgeT = nowT();
+
+  if(kind === 'late'){
+    stats.miss++; combo = 0;
+    sfxMiss();
+    pops.push({text:'おしい…', t:nowT(), color:'#7a8b9c'});
+    faceKind = 'sad'; faceT = nowT();
+    burst(o, 6, '#c8d4de');
+    return;
+  }
+
+  const isP = kind === 'perfect';
+  if(isP) stats.perfect++; else stats.good++;
+  combo++; maxCombo = Math.max(maxCombo, combo);
+  score += (isP ? 100 : 60) + Math.min(combo, 20) * 5;
+  sfxHit(isP);
+  pops.push({text:isP ? 'ばっちり！' : 'いいね！', t:nowT(), color:isP ? '#ffd400' : '#8ef0a0'});
+  faceKind = 'happy'; faceT = nowT();
+  burst(o, isP ? 18 : 10, isP ? '#ffe14d' : '#a9f0ff');
+}
+
+function missObj(o){
+  o.judged = 'miss';
+  o.judgeT = nowT();
+  stats.miss++; combo = 0;
+  sfxMiss();
+  pops.push({text:'ミス', t:nowT(), color:'#ff7a90'});
+  faceKind = 'sad'; faceT = nowT();
+}
+
+function burst(o, n, color){
+  const p = song.mode === 1 ? objPos(o, 1) : {x:lampX(o.lamp), y:LAMP_Y};
+  for(let i = 0; i < n; i++){
+    const a = Math.random() * Math.PI * 2, sp = 90 + Math.random() * 260;
+    fx.push({x:p.x, y:p.y, vx:Math.cos(a) * sp, vy:Math.sin(a) * sp - 90,
+             t:nowT(), life:0.55 + Math.random() * 0.35,
+             c:color, r:3 + Math.random() * 5});
+  }
+}
+
+/* さわった とき
+   いちばん ちかい「まだ たたいて いない もの」を さがす。
+   でも、もっと ちかい ところに「もう たたいた もの」が ある ときは
+   おなじ もの を 2かい おした だけ なので、つぎ の もの を とらない。 */
+function onTap(){
+  if(scene !== 'play') return;
+  punchT = nowT();
+  const t = nowT() + offsetMs / 1000;
+
+  let best = null, bd = 1e9, doneNear = 1e9;
+  for(const o of objs){
+    const d = Math.abs(beatTime(o.hitB) - t);
+    if(o.judged){ if(d < doneNear) doneNear = d; continue; }
+    if(d < bd){ bd = d; best = o; }
+  }
+  if(best && bd <= winLimit && doneNear >= bd){
+    judge(best, bd);
+    if(song.mode === 2){ lampFx[best.lamp] = nowT(); lampWho[best.lamp] = 'me'; }
+  }else{
+    stats.whiff++; combo = 0;
+    sfxWhiff();
+    pops.push({text:'あれ？', t:nowT(), color:'#c8d4de'});
+  }
+}
+
+/* ================================================================== *
+ * かいし ・ しゅうりょう
+ * ================================================================== */
+function startSong(idx){
+  unlock();
+  song  = SONGS[idx];
+  scene = 'play';
+  stats = {perfect:0, good:0, miss:0, whiff:0};
+  score = 0; combo = 0; maxCombo = 0;
+  fx = []; pops = [];
+  punchT = -9; faceT = -9; teachFlash = -9;
+  lampFx = new Array(8).fill(-9);
+  lampWho = new Array(8).fill('');
+
+  buildTimeline(song);
+  evIdx  = 0;
+  startT = AC.currentTime + 0.45;
+  /* iPad は さいしょ おと が とまって いる ことが ある。
+     うごき だして から あらためて かいし じかん を きめなおす。 */
+  if(AC.state === 'suspended' && AC.resume){
+    AC.resume().then(() => {
+      if(scene === 'play' && evIdx === 0) startT = AC.currentTime + 0.45;
+    }, () => {});
+  }
+
+  $('menu').classList.remove('on');
+  $('result').classList.remove('on');
+  $('corner').classList.add('on');
+
+  clearInterval(timer);
+  timer = setInterval(tick, 25);
+}
+
+function stopAll(){
+  clearInterval(timer); timer = null;
+}
+
+function toMenu(){
+  stopAll();
+  scene = 'menu';
+  refreshBest();
+  $('menu').classList.add('on');
+  $('result').classList.remove('on');
+  $('corner').classList.remove('on');
+}
+
+function finish(){
+  stopAll();
+  scene = 'result';
+  $('corner').classList.remove('on');
+
+  const acc = totalCues ? (stats.perfect + stats.good * 0.6) / totalCues : 0;
+  score += maxCombo * 10;
+
+  let stars, rank, good = true;
+  if(acc >= 0.9){ stars = '★★★'; rank = 'かんぺき！'; }
+  else if(acc >= 0.7){ stars = '★★☆'; rank = 'じょうず！'; }
+  else if(acc >= 0.45){ stars = '★☆☆'; rank = 'もう すこし'; good = false; }
+  else { stars = '☆☆☆'; rank = 'れんしゅう しよう'; good = false; }
+
+  $('stars').textContent = stars;
+  $('rank').textContent  = rank;
+  $('detail').textContent =
+    'てん ' + score + ' ／ ばっちり ' + stats.perfect +
+    ' ・ いいね ' + stats.good + ' ・ ミス ' + (stats.miss + stats.whiff) +
+    ' ／ さいこう れんぞく ' + maxCombo;
+
+  const key = 'best.' + song.id;
+  const prev = store.get(key, 0);
+  if(score > prev){ store.set(key, score); $('newbest').textContent = '🎉 さいこう てん こうしん！'; }
+  else $('newbest').textContent = '';
+
+  jingle(good);
+  if(good){                                   /* おめでとう の かみふぶき */
+    const cols = ['#ffd400', '#ff7aa2', '#7ad0ff', '#8ef0a0', '#fff'];
+    for(let i = 0; i < 90; i++)
+      fx.push({x:Math.random() * W, y:-20 - Math.random() * 200,
+               vx:(Math.random() - 0.5) * 60, vy:60 + Math.random() * 120,
+               t:nowT() + Math.random() * 0.6, life:2.6, grav:30,
+               c:cols[i % cols.length], r:4 + Math.random() * 4});
+  }
+  $('result').classList.add('on');
+  refreshBest();
+}
+
+/* ================================================================== *
+ * え を かく
+ * ================================================================== */
+const GROUND = 430;
+const HERO_X = 250, HIT_X = 404, HIT_Y = 308;   /* こぶし が とどく ばしょ */
+const LAMP_Y = 466;
+const lampX = i => 200 + i * 80;
+
+function rr(x, y, w, h, r){
+  g.beginPath();
+  g.moveTo(x + r, y);
+  g.arcTo(x + w, y,     x + w, y + h, r);
+  g.arcTo(x + w, y + h, x,     y + h, r);
+  g.arcTo(x,     y + h, x,     y,     r);
+  g.arcTo(x,     y,     x + w, y,     r);
+  g.closePath();
+}
+
+/* キャラクター（ピアノアプリ の こ と おなじ かおだち）
+   x=あし の まんなか / footY=あし の した / s=おおきさ */
+function drawChara(x, footY, s, o){
+  o = o || {};
+  const col   = o.color || '#ffca3a';
+  const punch = o.punch || 0;                 /* 0..1 パンチ の しんこう */
+  const bob   = o.bob || 0;                   /* -1..1 はく に あわせた うごき */
+  const face  = o.face || 'normal';
+  const flip  = o.flip ? -1 : 1;
+
+  g.save();
+  g.translate(x, footY);
+  g.scale(s * flip, s);
+  g.translate(-60, -126);
+
+  /* かげ */
+  g.fillStyle = 'rgba(0,0,0,.16)';
+  g.beginPath(); g.ellipse(60, 124, 34, 7, 0, 0, 7); g.fill();
+
+  const jump = punch > 0 ? Math.sin(Math.PI * punch) * 12 : 0;
+  g.translate(0, -bob * 3 - jump);
+
+  /* あし */
+  g.fillStyle = '#6b4a2f';
+  rr(43, 94, 13, 26, 6.5); g.fill();
+  rr(64, 94, 13, 26, 6.5); g.fill();
+
+  /* みみ */
+  g.fillStyle = col;
+  g.beginPath(); g.arc(28, 26, 13, 0, 7); g.fill();
+  g.beginPath(); g.arc(92, 26, 13, 0, 7); g.fill();
+  g.fillStyle = '#ffb4c8';
+  g.beginPath(); g.arc(28, 26, 6, 0, 7); g.fill();
+  g.beginPath(); g.arc(92, 26, 6, 0, 7); g.fill();
+
+  /* うで。ひだり と みぎ で こうご に ふる。
+     みぎうで は たたく とき まえ（みぎ）に のびる。 */
+  const swing = Math.sin(bob * 1.4) * 16;
+  g.fillStyle = col;
+
+  g.save(); g.translate(13, 54); g.rotate((16 + swing) * Math.PI / 180);
+  rr(-6, 0, 12, 34, 6); g.fill(); g.restore();
+
+  const pk  = punch > 0 ? Math.sin(Math.PI * Math.min(1, punch * 1.6)) : 0;
+  const ang = -(16 - swing) - 74 * pk;
+  const len = 34 + 12 * pk;
+  g.save(); g.translate(107, 54); g.rotate(ang * Math.PI / 180);
+  rr(-6, 0, 12, len, 6); g.fill();
+  if(pk > 0.25){                                   /* こぶし */
+    g.beginPath(); g.arc(0, len + 2, 10, 0, 7); g.fill();
+  }
+  g.restore();
+
+  /* からだ */
+  g.fillStyle = col;
+  g.beginPath(); g.ellipse(60, 62, 40, 38, 0, 0, 7); g.fill();
+  g.fillStyle = '#fff6da';
+  g.beginPath(); g.ellipse(60, 74, 24, 20, 0, 0, 7); g.fill();
+
+  /* ほっぺ */
+  g.fillStyle = 'rgba(255,157,187,.85)';
+  g.beginPath(); g.arc(33, 70, 9, 0, 7); g.fill();
+  g.beginPath(); g.arc(87, 70, 9, 0, 7); g.fill();
+
+  /* め */
+  g.fillStyle = '#3a2b1c';
+  g.strokeStyle = '#3a2b1c'; g.lineWidth = 4.5; g.lineCap = 'round';
+  if(face === 'happy'){
+    g.beginPath(); g.moveTo(39, 57); g.quadraticCurveTo(46, 47, 53, 57); g.stroke();
+    g.beginPath(); g.moveTo(67, 57); g.quadraticCurveTo(74, 47, 81, 57); g.stroke();
+  }else if(face === 'sad'){
+    g.beginPath(); g.moveTo(39, 50); g.quadraticCurveTo(46, 60, 53, 50); g.stroke();
+    g.beginPath(); g.moveTo(67, 50); g.quadraticCurveTo(74, 60, 81, 50); g.stroke();
+  }else{
+    g.beginPath(); g.arc(46, 54, 7.5, 0, 7); g.fill();
+    g.beginPath(); g.arc(74, 54, 7.5, 0, 7); g.fill();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.arc(48.5, 51, 2.6, 0, 7); g.fill();
+    g.beginPath(); g.arc(76.5, 51, 2.6, 0, 7); g.fill();
+  }
+
+  /* くち */
+  if(face === 'happy' || punch > 0){
+    g.fillStyle = '#c94a63';
+    g.beginPath(); g.ellipse(60, 74, 9, 11, 0, 0, 7); g.fill();
+  }else{
+    g.strokeStyle = '#3a2b1c'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(52, 71); g.quadraticCurveTo(60, 79, 68, 71); g.stroke();
+  }
+
+  g.restore();
+}
+
+/* とんで くる もの */
+function objPos(o, p){
+  if(p == null) p = clamp((nowBeat() - (o.hitB - LEAD)) / LEAD, 0, 2);
+  const x = lerp(1020, HIT_X, p);
+  const y = lerp(210, HIT_Y, p) - 70 * Math.sin(Math.PI * Math.min(p, 1));
+  return {x, y, p};
+}
+
+function drawObj(kind, x, y, rot, sc){
+  g.save(); g.translate(x, y); g.rotate(rot); g.scale(sc, sc);
+  g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.18)';
+  if(kind === 'ball'){
+    g.fillStyle = '#ff5a72';
+    g.beginPath(); g.arc(0, 0, 22, 0, 7); g.fill(); g.stroke();
+    g.fillStyle = '#fff';
+    g.beginPath(); g.ellipse(-7, -8, 7, 5, -0.5, 0, 7); g.fill();
+  }else if(kind === 'star'){
+    g.fillStyle = '#ffd400';
+    g.beginPath();
+    for(let i = 0; i < 10; i++){
+      const r = i % 2 ? 10 : 24, a = -Math.PI / 2 + i * Math.PI / 5;
+      i ? g.lineTo(Math.cos(a) * r, Math.sin(a) * r) : g.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
+    g.closePath(); g.fill(); g.stroke();
+  }else if(kind === 'apple'){
+    g.fillStyle = '#68d060';
+    g.beginPath(); g.arc(0, 2, 21, 0, 7); g.fill(); g.stroke();
+    g.strokeStyle = '#6b4a2f'; g.lineWidth = 4;
+    g.beginPath(); g.moveTo(0, -18); g.quadraticCurveTo(6, -28, 14, -28); g.stroke();
+  }else{
+    g.fillStyle = '#fff';                        /* おにぎり */
+    g.beginPath();
+    g.moveTo(0, -22); g.quadraticCurveTo(22, 14, 20, 18);
+    g.quadraticCurveTo(0, 24, -20, 18);
+    g.quadraticCurveTo(-22, 14, 0, -22);
+    g.closePath(); g.fill(); g.stroke();
+    g.fillStyle = '#3a3a3a';
+    rr(-11, 2, 22, 14, 4); g.fill();
+  }
+  g.restore();
+}
+
+/* はいけい */
+function drawBg(){
+  const sky = song ? song.sky : ['#8fe0ff', '#d9f6ff'];
+  const grd = g.createLinearGradient(0, 0, 0, H);
+  grd.addColorStop(0, sky[0]); grd.addColorStop(1, sky[1]);
+  g.fillStyle = grd; g.fillRect(0, 0, W, H);
+
+  const t = AC ? AC.currentTime : performance.now() / 1000;
+  /* くも */
+  g.fillStyle = 'rgba(255,255,255,.7)';
+  for(let i = 0; i < 4; i++){
+    const x = ((t * 14 + i * 260) % (W + 260)) - 130;
+    const y = 60 + i * 27;
+    g.beginPath();
+    g.ellipse(x, y, 54, 24, 0, 0, 7);
+    g.ellipse(x + 40, y + 6, 38, 18, 0, 0, 7);
+    g.ellipse(x - 38, y + 8, 32, 16, 0, 0, 7);
+    g.fill();
+  }
+  /* おか */
+  g.fillStyle = song ? song.hill : '#66c96b';
+  g.beginPath();
+  g.moveTo(0, GROUND);
+  for(let x = 0; x <= W; x += 40)
+    g.lineTo(x, GROUND - 40 - 26 * Math.sin(x / 150 + 1.2));
+  g.lineTo(W, H); g.lineTo(0, H); g.closePath(); g.fill();
+  /* じめん */
+  g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(0, GROUND, W, H - GROUND);
+  g.fillStyle = '#f4e0b0'; g.fillRect(0, GROUND, W, 8);
+}
+
+/* はく に あわせた ゆか の ひかり */
+function drawBeatFloor(beat){
+  if(beat < 0) return;
+  const ph = beat - Math.floor(beat);
+  const a = 0.18 * (1 - ph);
+  g.fillStyle = 'rgba(255,255,255,' + a.toFixed(3) + ')';
+  g.fillRect(0, GROUND, W, H - GROUND);
+}
+
+function drawHud(){
+  g.save();
+  g.textAlign = 'left'; g.textBaseline = 'top';
+  g.font = 'bold 26px "Hiragino Maru Gothic ProN",sans-serif';
+  g.fillStyle = 'rgba(0,0,0,.35)';
+  rr(14, 12, 200, 40, 12); g.fill();
+  g.fillStyle = '#fff';
+  g.fillText('てん ' + score, 28, 20);
+
+  if(combo >= 3){
+    g.textAlign = 'center';
+    g.font = 'bold 30px "Hiragino Maru Gothic ProN",sans-serif';
+    g.fillStyle = '#fff';
+    g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 6;
+    g.strokeText(combo + ' れんぞく！', W / 2, 16);
+    g.fillText(combo + ' れんぞく！', W / 2, 16);
+  }
+
+  /* のこり を しめす バー */
+  const p = clamp(nowBeat() / endBeat, 0, 1);
+  g.fillStyle = 'rgba(0,0,0,.25)'; rr(14, 60, 200, 10, 5); g.fill();
+  g.fillStyle = '#ffd400';         rr(14, 60, 200 * p, 10, 5); g.fill();
+  g.restore();
+}
+
+function drawCountIn(beat){
+  if(beat >= COUNTIN || beat < -0.5) return;
+  const n = Math.floor(beat);
+  const ph = beat - n;
+  if(n < 0) return;
+  const label = ['よ', 'う', 'い', 'ドン！'][n];
+  g.save();
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const sc = 1 + 0.5 * (1 - Math.min(1, ph * 3));
+  g.translate(W / 2, 180); g.scale(sc, sc);
+  g.font = 'bold 84px "Hiragino Maru Gothic ProN",sans-serif';
+  g.strokeStyle = 'rgba(0,0,0,.35)'; g.lineWidth = 10;
+  g.strokeText(label, 0, 0);
+  g.fillStyle = '#fff'; g.fillText(label, 0, 0);
+  g.restore();
+}
+
+function drawFx(){
+  const t = nowT();
+  fx = fx.filter(p => t - p.t < p.life);
+  fx.forEach(p => {
+    const e = (t - p.t);
+    if(e < 0) return;                       /* まだ でて いない かけら */
+    const k = e / p.life;
+    const gr = p.grav == null ? 460 : p.grav;
+    g.globalAlpha = 1 - k;
+    g.fillStyle = p.c;
+    g.beginPath();
+    g.arc(p.x + p.vx * e, p.y + p.vy * e + gr * e * e, p.r * (1 - k * 0.5), 0, 7);
+    g.fill();
+  });
+  g.globalAlpha = 1;
+
+  pops = pops.filter(p => t - p.t < 0.9);
+  pops.forEach(p => {
+    const e = t - p.t;
+    g.save();
+    g.globalAlpha = clamp(1 - (e - 0.45) / 0.45, 0, 1);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    const y = (p.big ? 150 : HIT_Y - 130) - e * 40;
+    const sc = p.big ? 1.3 : (1 + 0.25 * Math.max(0, 1 - e * 6));
+    const x = p.big ? W / 2 : (song && song.mode === 2 ? 730 : HIT_X);
+    g.translate(x, y); g.scale(sc, sc);
+    g.font = 'bold 44px "Hiragino Maru Gothic ProN",sans-serif';
+    g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = 8;
+    g.strokeText(p.text, 0, 0);
+    g.fillStyle = p.color || '#fff';
+    g.fillText(p.text, 0, 0);
+    g.restore();
+  });
+}
+
+/* ---- ゲーム1：とんで くる もの を たたく ---- */
+function drawGame1(){
+  const beat = nowBeat(), t = nowT();
+  drawBg();
+  drawBeatFloor(beat);
+
+  /* ねらう ばしょ の わ */
+  g.save();
+  const ph = beat - Math.floor(beat);
+  g.setLineDash([9, 9]);
+  g.lineWidth = 4;
+  g.strokeStyle = 'rgba(255,255,255,' + (0.45 + 0.35 * (1 - ph)) + ')';
+  g.beginPath(); g.arc(HIT_X, HIT_Y, 40 + 6 * (1 - ph), 0, 7); g.stroke();
+  g.restore();
+
+  /* まだ とんでいない もの も ふくめて えがく */
+  objs.forEach(o => {
+    if(o.judged && o.judged !== 'miss'){
+      if(t - o.judgeT > 0.5) return;
+      return;                                   /* たたいた もの は かけら に なる */
+    }
+    const p = (beat - (o.hitB - LEAD)) / LEAD;
+    if(p < 0 || p > 1.9) return;
+    const q = objPos(o, Math.min(p, 1.9));
+    const rot = q.p * 6 + o.spin;
+    drawObj(o.kind, q.x, q.y, rot, 0.85 + 0.45 * Math.min(q.p, 1));
+  });
+
+  /* キャラクター */
+  const punch = t - punchT < 0.28 ? (t - punchT) / 0.28 : 0;
+  const face  = t - faceT < 0.5 ? faceKind : 'normal';
+  const bob   = Math.sin((beat % 1) * Math.PI);
+  drawChara(HERO_X, GROUND + 6, 1.75, {punch, bob, face});
+
+  drawFx();
+  drawCountIn(beat);
+  drawHud();
+
+  if(beat < COUNTIN + 6 && beat > COUNTIN - 1){
+    g.save();
+    g.textAlign = 'center';
+    g.font = 'bold 24px "Hiragino Maru Gothic ProN",sans-serif';
+    g.fillStyle = 'rgba(0,0,0,.35)';
+    rr(W / 2 - 220, H - 54, 440, 40, 14); g.fill();
+    g.fillStyle = '#fff';
+    g.fillText('とんで きたら がめん を ポン！', W / 2, H - 26);
+    g.restore();
+  }
+}
+
+/* ---- ゲーム2：まねっこ ---- */
+function drawGame2(){
+  const beat = nowBeat(), t = nowT();
+  drawBg();
+  drawBeatFloor(beat);
+
+  const bar = Math.floor((beat - COUNTIN) / 4);
+  const inPlayerBar = bar >= 2 && ((bar - 2) % 2 === 1);
+  const inTeachBar  = bar >= 2 && ((bar - 2) % 2 === 0);
+
+  /* せんせい が たたいた ら ランプ を ひからせる */
+  while(teachIdx < teachList.length && beat >= teachList[teachIdx].b){
+    const e = teachList[teachIdx++];
+    lampFx[e.lamp] = t; lampWho[e.lamp] = 'sensei';
+    teachFlash = t;
+  }
+
+  /* ランプ（8ぶんおんぷ 8こ）*/
+  const barStart = COUNTIN + Math.max(bar, 0) * 4;
+  for(let i = 0; i < 8; i++){
+    const x = lampX(i), y = LAMP_Y;
+    const fl = t - lampFx[i];
+    const on = fl < 0.35;
+    g.beginPath(); g.arc(x, y, on ? 26 - fl * 20 : 18, 0, 7);
+    g.fillStyle = on ? (lampWho[i] === 'me' ? '#8ef0a0' : '#ffd400') : 'rgba(255,255,255,.45)';
+    g.fill();
+    g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.2)'; g.stroke();
+  }
+  /* いま どこ を えんそう しているか の しるし */
+  if(beat >= COUNTIN){
+    const inBar = clamp(beat - barStart, 0, 4);
+    const x = lampX(0) - 40 + (inBar / 4) * (8 * 80);
+    g.fillStyle = 'rgba(255,255,255,.75)';
+    g.beginPath(); g.moveTo(x, LAMP_Y - 44); g.lineTo(x - 9, LAMP_Y - 60); g.lineTo(x + 9, LAMP_Y - 60);
+    g.closePath(); g.fill();
+  }
+
+  /* せんせい と じぶん */
+  const bob = Math.sin((beat % 1) * Math.PI);
+  const tf  = t - teachFlash < 0.3;
+  drawChara(230, GROUND - 10, 1.5,
+            {color:'#a78bfa', bob, punch:tf ? (t - teachFlash) / 0.3 : 0,
+             face:tf ? 'happy' : 'normal'});
+  const punch = t - punchT < 0.28 ? (t - punchT) / 0.28 : 0;
+  const face  = t - faceT < 0.5 ? faceKind : 'normal';
+  drawChara(730, GROUND - 10, 1.5, {color:'#ffca3a', bob, punch, face});
+
+  /* いま は どっち の ばん？ */
+  if(bar >= 2 && bar < 2 + song.rounds.length * 2){
+    g.save();
+    g.textAlign = 'center';
+    g.font = 'bold 30px "Hiragino Maru Gothic ProN",sans-serif';
+    const label = inTeachBar ? 'きいてね' : 'まねして ポン！';
+    g.fillStyle = inTeachBar ? 'rgba(0,0,0,.35)' : 'rgba(214,60,90,.55)';
+    rr(W / 2 - 170, 96, 340, 46, 16); g.fill();
+    g.fillStyle = '#fff';
+    g.fillText(label, W / 2, 128);
+    g.restore();
+  }
+  if(inPlayerBar){
+    g.strokeStyle = 'rgba(255,255,255,.6)'; g.lineWidth = 6;
+    g.strokeRect(3, 3, W - 6, H - 6);
+  }
+
+  drawFx();
+  drawCountIn(beat);
+  drawHud();
+}
+
+/* ---- メニュー ・ けっか の うしろ ---- */
+function drawIdle(){
+  drawBg();
+  const t = (AC ? AC.currentTime : performance.now() / 1000);
+  const bob = Math.sin(t * 3.1);
+  g.globalAlpha = 0.85;
+  drawChara(120, GROUND + 40, 1.5, {bob, face:'happy'});
+  drawChara(850, GROUND + 40, 1.5, {bob:-bob, color:'#7ad0ff', face:'happy', flip:true});
+  g.globalAlpha = 1;
+  if(scene === 'result') drawFx();
+}
+
+function frame(){
+  requestAnimationFrame(frame);
+  if(scene === 'play' && AC){
+    /* とりのがし の チェック */
+    const t = nowT() + offsetMs / 1000;
+    for(const o of objs){
+      if(!o.judged && t - beatTime(o.hitB) > winLimit) missObj(o);
+    }
+    if(song.mode === 1) drawGame1(); else drawGame2();
+  }else{
+    drawIdle();
+  }
+}
+requestAnimationFrame(frame);
+
+/* ================================================================== *
+ * そうさ
+ * ================================================================== */
+window.addEventListener('pointerdown', e => {
+  unlock();
+  if(e.target && e.target.closest && e.target.closest('button')) return;
+  onTap();
+}, {passive:true});
+
+/* スペース や おと ボタン でも あそべる ように */
+window.addEventListener('keydown', e => {
+  if(e.repeat) return;
+  if(e.code === 'Space' || e.code === 'Enter'){ e.preventDefault(); unlock(); onTap(); }
+});
+
+document.addEventListener('touchmove',     e => e.preventDefault(), {passive:false});
+document.addEventListener('gesturestart',  e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('dblclick',      e => e.preventDefault());
+document.addEventListener('contextmenu',   e => e.preventDefault());
+
+let lastSong = 0;
+document.querySelectorAll('.song').forEach(b => {
+  b.addEventListener('click', () => {
+    lastSong = +b.dataset.song;
+    startSong(lastSong);
+  });
+});
+
+$('btnQuit').onclick  = () => { stopAll(); toMenu(); };
+$('btnRetry').onclick = () => startSong(lastSong);
+$('btnMenu').onclick  = () => toMenu();
+$('btnPiano').onclick = () => { location.href = 'index.html'; };
+
+$('calMinus').onclick = () => { offsetMs = clamp(offsetMs - 10, -200, 200);
+                                store.set('offset', offsetMs); refreshBest(); };
+$('calPlus').onclick  = () => { offsetMs = clamp(offsetMs + 10, -200, 200);
+                                store.set('offset', offsetMs); refreshBest(); };
+
+/* ぜんがめん（iPhone の Safari は たいおう して いない ので かくす）*/
+(function(){
+  const el = document.documentElement;
+  if(!(el.requestFullscreen || el.webkitRequestFullscreen)){
+    $('btnFull').style.display = 'none';
+    return;
+  }
+  $('btnFull').onclick = () => {
+    if(document.fullscreenElement || document.webkitFullscreenElement){
+      (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }else{
+      (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+    }
+  };
+})();
+
+window.addEventListener('blur', () => { if(scene === 'play'){ stopAll(); toMenu(); } });
+
+$('ver').textContent = VERSION;
+refreshBest();
+
+})();
+</script>
+</body>
+</html>

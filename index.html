@@ -237,6 +237,7 @@
   <button id="names"><span class="lbl"><span class="k">なまえ</span>ひらがな</span></button>
   <button id="song"><span class="lbl"><span class="k">おてほん</span>なし</span></button>
   <button id="rec"><span class="lbl"><span class="k">じぶんの きょく</span>ろくおん</span></button>
+  <button id="game"><span class="lbl"><span class="k">あそぶ</span>🎮 リズム</span></button>
   <button id="lock" class="icon" aria-label="ボタンを ロック"><span class="lbl">🔒</span></button>
   <button id="full" class="icon" aria-label="ぜんがめん"><span class="lbl">⛶</span></button>
 </div>
@@ -361,7 +362,7 @@ function nextNote(){
 
 /* このファイルの ばんごう。けんばん の ひだりした に でる。
    かえた のに ここが かわらない ときは キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v18';
+const VERSION = 'v19';
 
 /* ================================================================== *
  * おとの エンジン
@@ -876,6 +877,8 @@ function updateRecLabel(){
   $('rec').querySelector('.lbl').innerHTML =
     '<span class="k">じぶんの きょく</span>' + (recording ? 'とめる ' + SONGS[MY_SONG].notes.length : 'ろくおん');
 }
+/* リズムゲーム（べつの ファイル）へ */
+$('game').onclick     = () => { allOff(); location.href = 'rhythm.html'; };
 $('lock').onclick     = () => { state.locked = !state.locked;
                                 $('lock').classList.toggle('on', state.locked);
                                 $('lock').querySelector('.lbl').textContent = state.locked ? '🔓' : '🔒';
