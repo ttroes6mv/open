@@ -40,17 +40,45 @@
     overflow:hidden;
     background:#7fd8ff;
   }
-  #cv{position:absolute; left:0; top:0; width:960px; height:540px;}
+  /* さわった かどうか は window で うけとる ので、canvas は タッチ を とらない。
+     まんいち canvas が うえ に かぶさっても ボタン は おせる。 */
+  #cv{position:absolute; left:0; top:0; width:960px; height:540px; z-index:1;
+      pointer-events:none;}
+  /* iPad（WebKit）では canvas が がめん の うえ に かぶさって しまう ことが
+     あるので、メニュー や けっか を だして いる あいだ は canvas を けす。
+     こう すれば ぜったい に ボタン が かくれない。 */
+  body.ui #cv{display:none;}
 
-  /* ===== がめん（メニュー / けっか）===== */
+  /* ===== がめん（メニュー / けっか）=====
+     canvas に たよらず、そら と じめん は CSS で かく。 */
   .screen{
-    position:absolute; inset:0;
+    position:absolute; left:0; top:0; right:0; bottom:0;
     display:none;
     flex-direction:column; align-items:center; justify-content:center;
     gap:10px;
     padding:16px 24px;
+    z-index:10;
+    transform:translateZ(0);          /* じぶん の そう で えがく（かぶられない）*/
+    background:linear-gradient(#8fe0ff 0%, #d9f6ff 60%, #66c96b 60%, #4fae57 100%);
+  }
+  #result{
+    background:linear-gradient(#ffd08a 0%, #fff3d0 60%, #7bc86c 60%, #5aa84f 100%);
   }
   .screen.on{display:flex;}
+
+  /* メニュー の すみ で おどる キャラクター（canvas では なく SVG）*/
+  .deco{
+    position:absolute; bottom:6px; width:150px; height:165px;
+    pointer-events:none;
+    transform-origin:50% 92%;
+    animation:bob .62s ease-in-out infinite alternate;
+  }
+  .deco.l{left:14px;}
+  .deco.r{right:14px; animation-delay:.31s;}
+  @keyframes bob{
+    from{transform:translateY(2%)  rotate(-4deg);}
+    to  {transform:translateY(-6%) rotate(4deg);}
+  }
 
   h1{
     margin:0 0 2px;
@@ -98,7 +126,8 @@
   /* ===== あそんでいる ときの すみっこ ボタン ===== */
   #corner{
     position:absolute; right:10px; top:10px;
-    display:none; gap:8px; z-index:6;
+    display:none; gap:8px; z-index:20;
+    transform:translateZ(0);          /* canvas に かぶられない ように */
   }
   #corner.on{display:flex;}
   #corner button{
@@ -107,15 +136,22 @@
   }
 
   /* ===== けっか ===== */
-  #stars{font-size:64px; line-height:1; letter-spacing:6px; text-shadow:0 4px 10px rgba(0,0,0,.35);}
-  #rank{font-size:40px; margin:2px 0 0; text-shadow:0 3px 0 #1b6ea8;}
+  #stars{font-size:64px; line-height:1; letter-spacing:6px; text-shadow:0 4px 10px rgba(0,0,0,.35);
+         color:#ffd400; animation:pop .5s ease-out;}
+  @keyframes pop{
+    from{transform:scale(.2); opacity:0;}
+    60% {transform:scale(1.25); opacity:1;}
+    to  {transform:scale(1);}
+  }
+  #rank{font-size:40px; margin:2px 0 0; color:#fff; text-shadow:0 3px 0 rgba(0,0,0,.3);}
   #detail{font-size:19px; background:rgba(0,0,0,.28); padding:8px 20px; border-radius:14px;}
   #newbest{font-size:18px; color:#ffe14d; height:22px;}
 
   /* バージョン（ふるい ファイル を みて いない か たしかめる ため） */
   #ver{
-    position:absolute; left:8px; bottom:6px; z-index:8; pointer-events:none;
-    font-size:12px; font-weight:700; color:#fff; opacity:.5;
+    position:absolute; left:8px; bottom:6px; z-index:30; pointer-events:none;
+    transform:translateZ(0);
+    font-size:12px; font-weight:700; color:#333; opacity:.45;
   }
 </style>
 </head>
@@ -178,7 +214,7 @@
     </div>
   </div>
 
-  <div id="ver">v1</div>
+  <div id="ver">v2</div>
 </div>
 
 <script>
@@ -187,7 +223,7 @@
 
 /* このファイルの ばんごう。かえた のに ここが かわらない ときは
    ブラウザ が キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v1';
+const VERSION = 'v2';
 
 const W = 960, H = 540;                 /* ステージ の おおきさ（ろんり） */
 const $ = id => document.getElementById(id);
@@ -837,6 +873,7 @@ function startSong(idx){
     }, () => {});
   }
 
+  showUI(false);
   $('menu').classList.remove('on');
   $('result').classList.remove('on');
   $('corner').classList.add('on');
@@ -853,6 +890,7 @@ function toMenu(){
   stopAll();
   scene = 'menu';
   refreshBest();
+  showUI(true);
   $('menu').classList.add('on');
   $('result').classList.remove('on');
   $('corner').classList.remove('on');
@@ -886,14 +924,7 @@ function finish(){
   else $('newbest').textContent = '';
 
   jingle(good);
-  if(good){                                   /* おめでとう の かみふぶき */
-    const cols = ['#ffd400', '#ff7aa2', '#7ad0ff', '#8ef0a0', '#fff'];
-    for(let i = 0; i < 90; i++)
-      fx.push({x:Math.random() * W, y:-20 - Math.random() * 200,
-               vx:(Math.random() - 0.5) * 60, vy:60 + Math.random() * 120,
-               t:nowT() + Math.random() * 0.6, life:2.6, grav:30,
-               c:cols[i % cols.length], r:4 + Math.random() * 4});
-  }
+  showUI(true);
   $('result').classList.add('on');
   refreshBest();
 }
@@ -1294,17 +1325,34 @@ function drawGame2(){
   drawHud();
 }
 
-/* ---- メニュー ・ けっか の うしろ ---- */
-function drawIdle(){
-  drawBg();
-  const t = (AC ? AC.currentTime : performance.now() / 1000);
-  const bob = Math.sin(t * 3.1);
-  g.globalAlpha = 0.85;
-  drawChara(120, GROUND + 40, 1.5, {bob, face:'happy'});
-  drawChara(850, GROUND + 40, 1.5, {bob:-bob, color:'#7ad0ff', face:'happy', flip:true});
-  g.globalAlpha = 1;
-  if(scene === 'result') drawFx();
+/* ---- メニュー ・ けっか の すみ に たつ キャラクター（SVG）----
+   canvas では なく DOM で かく ので、iPad でも かならず みえる。 */
+function decoSvg(color, side){
+  return '<svg class="deco ' + side + '" viewBox="0 0 120 132">' +
+    '<ellipse cx="60" cy="123" rx="30" ry="6" fill="rgba(0,0,0,.13)"/>' +
+    '<rect x="43" y="94" width="13" height="26" rx="6.5" fill="#6b4a2f"/>' +
+    '<rect x="64" y="94" width="13" height="26" rx="6.5" fill="#6b4a2f"/>' +
+    '<circle cx="28" cy="26" r="13" fill="' + color + '"/>' +
+    '<circle cx="92" cy="26" r="13" fill="' + color + '"/>' +
+    '<circle cx="28" cy="26" r="6" fill="#ffb4c8"/>' +
+    '<circle cx="92" cy="26" r="6" fill="#ffb4c8"/>' +
+    '<rect x="7"   y="52" width="12" height="34" rx="6" fill="' + color + '"/>' +
+    '<rect x="101" y="52" width="12" height="34" rx="6" fill="' + color + '"/>' +
+    '<ellipse cx="60" cy="62" rx="40" ry="38" fill="' + color + '"/>' +
+    '<ellipse cx="60" cy="74" rx="24" ry="20" fill="#fff6da"/>' +
+    '<circle cx="33" cy="70" r="9" fill="#ff9dbb" opacity=".85"/>' +
+    '<circle cx="87" cy="70" r="9" fill="#ff9dbb" opacity=".85"/>' +
+    '<g fill="none" stroke="#3a2b1c" stroke-width="4.5" stroke-linecap="round">' +
+      '<path d="M39 57 q7 -10 14 0"/><path d="M67 57 q7 -10 14 0"/></g>' +
+    '<ellipse cx="60" cy="74" rx="9" ry="11" fill="#c94a63"/>' +
+  '</svg>';
 }
+['menu', 'result'].forEach(id => {
+  $(id).insertAdjacentHTML('beforeend', decoSvg('#ffca3a', 'l') + decoSvg('#7ad0ff', 'r'));
+});
+
+/* メニュー や けっか を だして いる あいだ は canvas を けす */
+function showUI(on){ document.body.classList.toggle('ui', !!on); }
 
 function frame(){
   requestAnimationFrame(frame);
@@ -1315,9 +1363,8 @@ function frame(){
       if(!o.judged && t - beatTime(o.hitB) > winLimit) missObj(o);
     }
     if(song.mode === 1) drawGame1(); else drawGame2();
-  }else{
-    drawIdle();
   }
+  /* メニュー と けっか は CSS と SVG で かいて いる ので、canvas は やすむ */
 }
 requestAnimationFrame(frame);
 
@@ -1382,6 +1429,7 @@ $('calPlus').onclick  = () => { offsetMs = clamp(offsetMs + 10, -200, 200);
 window.addEventListener('blur', () => { if(scene === 'play'){ stopAll(); toMenu(); } });
 
 $('ver').textContent = VERSION;
+showUI(true);                       /* さいしょ は メニュー なので canvas は やすみ */
 refreshBest();
 
 })();
