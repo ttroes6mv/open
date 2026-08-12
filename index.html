@@ -877,8 +877,10 @@ function updateRecLabel(){
   $('rec').querySelector('.lbl').innerHTML =
     '<span class="k">じぶんの きょく</span>' + (recording ? 'とめる ' + SONGS[MY_SONG].notes.length : 'ろくおん');
 }
-/* リズムゲーム（べつの ファイル）へ */
-$('game').onclick     = () => { allOff(); location.href = 'rhythm.html'; };
+/* リズムゲーム（べつの フォルダ・べつの URL）へ。
+   ファイル を そのまま ひらいた とき（file://）でも いける ように
+   index.html まで かいて おく。 */
+$('game').onclick     = () => { allOff(); location.href = 'rhythm/index.html'; };
 $('lock').onclick     = () => { state.locked = !state.locked;
                                 $('lock').classList.toggle('on', state.locked);
                                 $('lock').querySelector('.lbl').textContent = state.locked ? '🔓' : '🔒';

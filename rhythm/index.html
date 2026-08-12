@@ -411,8 +411,7 @@ function sfxMiss(){                          /* とりのがした */
 function sfxWhiff(){                         /* なにも ない ところで おした */
   noise(AC.currentTime, 0.11, {type:'bandpass', freq:2600, q:0.6, gain:0.12, out:sfxG});
 }
-function sfxCount(n){                        /* よーい の カウント */
-  const t = AC.currentTime;
+function sfxCount(t, n){                     /* よーい の カウント */
   hat(t, false, 1.2);
   tone(t, n >= 4 ? 84 : 76, 0.1, {type:'sine', gain:0.16, out:sfxG});
 }
@@ -628,7 +627,7 @@ let pops = [];                     /* 「ばっちり！」 などの もじ */
 let punchT = -9, faceT = -9, faceKind = 'happy';
 let lampFx = new Array(8).fill(-9);
 let lampWho = new Array(8).fill('');
-let teachFlash = -9;
+let teachFlash = -9, lastBar = -99;
 
 const nowT     = () => AC.currentTime;
 const beatTime = b => startT + b * spb;
@@ -688,8 +687,6 @@ function buildTimeline(s){
         ev.push({b:COUNTIN + tBar * 4 + st / 4, k:'teach', lamp:st / 2});
         list.push({hitB:COUNTIN + pBar * 4 + st / 4, lamp:st / 2, judged:null, round:r});
       });
-      ev.push({b:COUNTIN + tBar * 4, k:'banner', text:'きいてね'});
-      ev.push({b:COUNTIN + pBar * 4, k:'banner', text:'まねしてね！'});
     });
     endBeat = COUNTIN + (2 + s.rounds.length * 2 + 1) * 4;
   }
@@ -714,7 +711,7 @@ function buildTimeline(s){
 function playEvent(e){
   const t = beatTime(e.b);
   switch(e.k){
-    case 'count':  break;                       /* おとは tick で ならす */
+    case 'count':  sfxCount(t, e.n);            break;
     case 'kick':   kick(t);                     break;
     case 'snare':  song.id === 'pon3' ? taiko(t, 150) : snare(t); break;
     case 'hat':    hat(t, false);               break;
@@ -725,26 +722,16 @@ function playEvent(e){
                         {type:'sine', gain:0.17, fm:3.0, fmAmt:1.8});            break;
     case 'launch': sfxLaunch(t);                break;
     case 'teach':  sfxTeach(t);                 break;
-    case 'banner': break;
   }
 }
 
+/* おとは ぜんぶ「おと の とけい」で よやく する。
+   がめん の ほう も おなじ とけい を みて いる ので、ずれない。 */
 function tick(){
   if(scene !== 'play') return;
   const ahead = AC.currentTime + 0.12;
   while(evIdx < events.length && beatTime(events[evIdx].b) < ahead){
-    const e = events[evIdx++];
-    if(e.k === 'count'){
-      /* カウント は みじかい ので その ばで（ずれても きに ならない）*/
-      const wait = (beatTime(e.b) - AC.currentTime) * 1000;
-      setTimeout(() => { if(scene === 'play') sfxCount(e.n); }, Math.max(0, wait));
-    }else if(e.k === 'banner'){
-      const wait = (beatTime(e.b) - AC.currentTime) * 1000;
-      setTimeout(() => { if(scene === 'play') pops.push({text:e.text, t:nowT(), big:true}); },
-                 Math.max(0, wait));
-    }else{
-      playEvent(e);
-    }
+    playEvent(events[evIdx++]);
   }
   if(nowBeat() > endBeat + 2) finish();
 }
@@ -835,7 +822,7 @@ function startSong(idx){
   stats = {perfect:0, good:0, miss:0, whiff:0};
   score = 0; combo = 0; maxCombo = 0;
   fx = []; pops = [];
-  punchT = -9; faceT = -9; teachFlash = -9;
+  punchT = -9; faceT = -9; teachFlash = -9; lastBar = -99;
   lampFx = new Array(8).fill(-9);
   lampWho = new Array(8).fill('');
 
@@ -876,13 +863,14 @@ function finish(){
   scene = 'result';
   $('corner').classList.remove('on');
 
-  const acc = totalCues ? (stats.perfect + stats.good * 0.6) / totalCues : 0;
+  /* ★の かず。ぜんぶ「いいね」でも ★★ に なる ように あまめ */
+  const acc = totalCues ? (stats.perfect + stats.good * 0.75) / totalCues : 0;
   score += maxCombo * 10;
 
   let stars, rank, good = true;
-  if(acc >= 0.9){ stars = '★★★'; rank = 'かんぺき！'; }
-  else if(acc >= 0.7){ stars = '★★☆'; rank = 'じょうず！'; }
-  else if(acc >= 0.45){ stars = '★☆☆'; rank = 'もう すこし'; good = false; }
+  if(acc >= 0.88){ stars = '★★★'; rank = 'かんぺき！'; }
+  else if(acc >= 0.62){ stars = '★★☆'; rank = 'じょうず！'; }
+  else if(acc >= 0.35){ stars = '★☆☆'; rank = 'もう すこし'; good = false; }
   else { stars = '☆☆☆'; rank = 'れんしゅう しよう'; good = false; }
 
   $('stars').textContent = stars;
@@ -1247,6 +1235,13 @@ function drawGame2(){
     teachFlash = t;
   }
 
+  /* しょうせつ が かわった ら「きいてね／まねしてね！」を だす */
+  if(bar !== lastBar){
+    if(bar >= 2 && bar < 2 + song.rounds.length * 2)
+      pops.push({text:inTeachBar ? 'きいてね' : 'まねしてね！', t:t, big:true});
+    lastBar = bar;
+  }
+
   /* ランプ（8ぶんおんぷ 8こ）*/
   const barStart = COUNTIN + Math.max(bar, 0) * 4;
   for(let i = 0; i < 8; i++){
@@ -1358,7 +1353,10 @@ document.querySelectorAll('.song').forEach(b => {
 $('btnQuit').onclick  = () => { stopAll(); toMenu(); };
 $('btnRetry').onclick = () => startSong(lastSong);
 $('btnMenu').onclick  = () => toMenu();
-$('btnPiano').onclick = () => { location.href = 'index.html'; };
+/* ピアノ は 1つ うえ の フォルダ。
+   ファイル を そのまま ひらいた とき（file://）でも いける ように
+   index.html まで かいて おく。 */
+$('btnPiano').onclick = () => { location.href = '../index.html'; };
 
 $('calMinus').onclick = () => { offsetMs = clamp(offsetMs - 10, -200, 200);
                                 store.set('offset', offsetMs); refreshBest(); };
