@@ -1,0 +1,1680 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f3f4f6">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>みんなの ナンプレ</title>
+<style>
+/* =====================================================================
+   みんなの ナンプレ
+   ・こどもモード（5さい〜）：え で あそぶ 4x4 / 6x6 ＋ ルールを おしえる れんしゅう
+   ・おとなモード：9x9。おおきい もじ・つよい コントラスト・おおきい ボタン。
+   がめん は たて でも よこ でも そのまま つかえる（かいてん させない）。
+   ===================================================================== */
+
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{
+  margin:0; padding:0;
+  position:fixed; inset:0;
+  width:100%; height:100%;
+  overflow:hidden;
+  overscroll-behavior:none;
+  touch-action:none;
+}
+body{
+  font-family:"Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic",-apple-system,"Segoe UI","Noto Sans JP",sans-serif;
+  -webkit-user-select:none; user-select:none;
+  -webkit-touch-callout:none;
+  color:var(--fg);
+  background:var(--bg);
+  /* --u : もじの おおきさ の ばいりつ（せってい で かえる）*/
+  --u:1;
+}
+
+/* ===== いろ（モード ごと に きりかえ）===== */
+body{
+  --bg:#eceef1; --panel:#ffffff; --fg:#14181d; --sub:#5b636d;
+  --line:#9aa1aa; --thick:#2a3038;
+  --given:#14181d; --user:#0a4fb4; --hint:#0f7a4a; --bad:#c0271f;
+  --sel:#ffe8a3; --rel:#e8eef7; --same:#c9e0ff;
+  --btn:#ffffff; --btnEdge:#2a3038; --accent:#0a4fb4; --accentFg:#ffffff;
+  --radius:10px;
+}
+body.kids{
+  --bg:linear-gradient(#bfe9ff 0%, #e8f7ff 45%, #fff6e0 100%);
+  --panel:#fffdf6; --fg:#3f2e20; --sub:#7a6350;
+  --line:#e0c9a8; --thick:#c98b4b;
+  --given:#3f2e20; --user:#0a4fb4;
+  --sel:#ffe08a; --rel:#fff3d6; --same:#ffe9b8;
+  --btn:#fffdf6; --btnEdge:#c98b4b; --accent:#ef7d3d; --accentFg:#ffffff;
+  --radius:18px;
+}
+
+/* ===== がめん の わりつけ ===== */
+#app{
+  position:absolute; inset:0;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  display:flex; flex-direction:column;
+}
+.screen{
+  position:absolute; inset:0;
+  display:none; flex-direction:column;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+.screen.on{display:flex;}
+
+/* ===== メニュー ===== */
+.menu{
+  align-items:center; justify-content:flex-start;
+  overflow:hidden;
+  gap:calc(10px * var(--u));
+  padding-top:calc(env(safe-area-inset-top) + 14px);
+  padding-bottom:calc(env(safe-area-inset-bottom) + 14px);
+  padding-left:calc(env(safe-area-inset-left) + 14px);
+  padding-right:calc(env(safe-area-inset-right) + 14px);
+}
+.menu h1{
+  margin:0; font-size:calc(30px * var(--u)); letter-spacing:.04em;
+  color:var(--fg); text-align:center;
+}
+.menu h1 .small{display:block; font-size:calc(15px * var(--u)); color:var(--sub); margin-top:4px; letter-spacing:0;}
+.menu .lead{
+  margin:0; font-size:calc(16px * var(--u)); color:var(--sub); text-align:center; line-height:1.5;
+}
+.menuList{
+  width:100%; max-width:560px;
+  display:flex; flex-direction:column; gap:calc(10px * var(--u));
+  overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;
+  padding:2px;
+}
+/* よこ に ひろい がめん（iPad よこ）は 2れつ に する */
+body.land .menuList{max-width:860px; display:grid; grid-template-columns:1fr 1fr; align-content:start;}
+body.land .menuList .wide{grid-column:1 / -1;}
+
+.big{
+  display:flex; align-items:center; gap:14px;
+  width:100%; min-height:calc(74px * var(--u));
+  padding:calc(12px * var(--u)) calc(16px * var(--u));
+  border:3px solid var(--btnEdge); border-radius:var(--radius);
+  background:var(--btn); color:var(--fg);
+  font-family:inherit; font-size:calc(22px * var(--u)); font-weight:700;
+  text-align:left; line-height:1.25;
+  cursor:pointer;
+}
+.big:active{transform:translateY(2px); filter:brightness(.96);}
+.big .ico{font-size:calc(30px * var(--u)); line-height:1; flex:0 0 auto;}
+.big .txt{flex:1 1 auto; min-width:0;}
+.big .sub{display:block; font-size:calc(14px * var(--u)); font-weight:500; color:var(--sub); margin-top:3px;}
+.big.pri{background:var(--accent); color:var(--accentFg); border-color:var(--accent);}
+.big.pri .sub{color:rgba(255,255,255,.9);}
+.big.kidsCard{background:linear-gradient(#fff6df,#ffe6bd); border-color:#e79a4a;}
+.big.adultCard{background:#ffffff; border-color:#2a3038;}
+.big[disabled]{opacity:.45;}
+.big .badge{
+  flex:0 0 auto; font-size:calc(13px * var(--u)); font-weight:700;
+  padding:3px 9px; border-radius:999px; background:var(--rel); color:var(--sub);
+}
+.big .badge.clear{background:#2fa84f; color:#fff;}
+
+.backRow{width:100%; max-width:560px; display:flex; gap:10px;}
+body.land .backRow{max-width:860px;}
+.mini{
+  flex:0 0 auto; min-height:calc(48px * var(--u));
+  padding:calc(8px * var(--u)) calc(14px * var(--u));
+  border:2px solid var(--btnEdge); border-radius:var(--radius);
+  background:var(--btn); color:var(--fg);
+  font-family:inherit; font-size:calc(17px * var(--u)); font-weight:700;
+  cursor:pointer;
+}
+.mini:active{transform:translateY(2px);}
+.spacer{flex:1 1 auto;}
+
+/* ===== ゲームがめん ===== */
+#scrGame{padding:0;}
+#bar{
+  flex:0 0 auto;
+  display:flex; align-items:center; gap:8px;
+  padding:calc(env(safe-area-inset-top) + 6px) calc(env(safe-area-inset-right) + 8px) 6px calc(env(safe-area-inset-left) + 8px);
+  background:var(--panel);
+  border-bottom:2px solid var(--line);
+}
+body.kids #bar{background:transparent; border-bottom:none;}
+/* うえ の おび は おおきく なりすぎない ように あたま を おさえる。
+   （もじ を 特大 に しても ばん と パッド の ばしょ を うばわない）*/
+#bar .title{
+  flex:1 1 auto; min-width:0;
+  font-size:min(calc(17px * var(--u)), 23px); font-weight:700;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+#bar .stat{flex:0 0 auto; font-size:min(calc(15px * var(--u)), 21px); color:var(--sub); font-weight:700;}
+#bar button{
+  flex:0 0 auto;
+  min-width:min(calc(46px * var(--u)), 62px); min-height:min(calc(42px * var(--u)), 56px);
+  padding:0 calc(10px * var(--u));
+  border:2px solid var(--btnEdge); border-radius:var(--radius);
+  background:var(--btn); color:var(--fg);
+  font-family:inherit; font-size:min(calc(17px * var(--u)), 23px); font-weight:700; cursor:pointer;
+}
+#bar button:active{transform:translateY(2px);}
+
+#stage{
+  flex:1 1 auto; min-height:0;
+  display:flex; gap:min(calc(8px * var(--u)), 12px);
+  padding:min(calc(8px * var(--u)), 12px);
+  padding-bottom:calc(env(safe-area-inset-bottom) + 8px);
+}
+body.port #stage{flex-direction:column;}
+body.land #stage{flex-direction:row;}
+
+#boardWrap{
+  flex:1 1 auto; min-width:0; min-height:0;
+  display:flex; align-items:center; justify-content:center;
+}
+body.port #boardWrap{flex:0 0 auto;}
+#side{
+  display:flex; flex-direction:column; gap:calc(6px * var(--u));
+  min-width:0; min-height:0;
+}
+body.port #side{flex:1 1 auto;}
+body.land #side{flex:0 0 auto; width:min(46%, 420px);}
+
+/* ===== ばん ===== */
+#board{
+  position:relative;
+  display:grid;
+  background:var(--panel);
+  border:3px solid var(--thick);
+  border-radius:6px;
+  overflow:hidden;
+}
+body.kids #board{border-radius:14px; border-width:4px;}
+.cell{
+  position:relative;
+  display:flex; align-items:center; justify-content:center;
+  border-top:1px solid var(--line);
+  border-left:1px solid var(--line);
+  background:var(--panel);
+  font-variant-numeric:tabular-nums;
+  font-weight:700;
+  color:var(--given);
+  overflow:hidden;
+}
+.cell.bt{border-top:3px solid var(--thick);}
+.cell.bl{border-left:3px solid var(--thick);}
+.cell.r0{border-top:none;}
+.cell.c0{border-left:none;}
+.cell .v{
+  font-size:calc(var(--cs) * .62);
+  line-height:1;
+  display:flex; align-items:center; justify-content:center;
+  width:100%; height:100%;
+}
+.cell .v svg{width:78%; height:78%; display:block;}
+.cell.user{color:var(--user);}
+.cell.user .v{font-weight:800;}
+.cell.hintv{color:var(--hint);}
+.cell.bad{color:var(--bad); background:#ffe0dd;}
+.cell.rel{background:var(--rel);}
+.cell.same{background:var(--same);}
+.cell.sel{background:var(--sel); box-shadow:inset 0 0 0 3px var(--accent);}
+.cell.sel.bad{background:#ffd0cb;}
+.cell.mark{box-shadow:inset 0 0 0 4px #ef7d3d; animation:pulse 1.1s ease-in-out infinite;}
+.cell.shake{animation:shake .4s;}
+.cell.pop .v{animation:pop .35s;}
+@keyframes pulse{0%,100%{box-shadow:inset 0 0 0 4px #ef7d3d;}50%{box-shadow:inset 0 0 0 9px #ffc37a;}}
+@keyframes shake{0%,100%{transform:translateX(0);}20%{transform:translateX(-6px);}40%{transform:translateX(6px);}60%{transform:translateX(-4px);}80%{transform:translateX(4px);}}
+@keyframes pop{0%{transform:scale(.3);}60%{transform:scale(1.18);}100%{transform:scale(1);}}
+.cell .memo{
+  position:absolute; inset:6%;
+  display:grid; gap:0;
+  font-size:calc(var(--cs) * .21); font-weight:700; color:var(--sub);
+  pointer-events:none;
+}
+.cell .memo span{display:flex; align-items:center; justify-content:center; line-height:1;}
+
+/* ===== メッセージ ===== */
+#msg{
+  /* ながい せつめい が でても パッド を おしつぶさない ように
+     たかさ に かぎり を つけ、あふれたら なか だけ スクロール する。 */
+  flex:0 1 auto;
+  overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:calc(7px * var(--u)) calc(10px * var(--u));
+  border:2px solid var(--line); border-radius:var(--radius);
+  background:var(--panel);
+  font-size:min(calc(16px * var(--u)), 22px); font-weight:700; line-height:1.35;
+}
+#msg.good{border-color:#2fa84f; background:#e6f7ea; color:#1c6b33;}
+#msg.ng{border-color:var(--bad); background:#ffe9e6; color:#9c1f18;}
+#msg svg{width:calc(26px * var(--u)); height:calc(26px * var(--u)); vertical-align:-.3em;}
+#msg .num{font-size:calc(24px * var(--u)); color:var(--user);}
+#msg .sub2{width:100%; font-size:.78em; font-weight:500; color:var(--sub);}
+
+/* ===== すうじ／え の パッド ===== */
+#pad{
+  flex:1 1 auto; min-height:0;
+  display:grid; gap:calc(6px * var(--u));
+  overflow:hidden;                 /* ぜったい に した の ボタン に かぶせない */
+  --pf:22px;
+}
+#pad button{
+  display:flex; align-items:center; justify-content:center;
+  min-height:0;
+  border:3px solid var(--btnEdge); border-radius:var(--radius);
+  background:var(--btn); color:var(--fg);
+  font-family:inherit; font-weight:800; font-size:var(--pf);
+  font-variant-numeric:tabular-nums;
+  line-height:1; cursor:pointer; position:relative;
+  overflow:hidden;
+}
+#pad button svg{width:82%; height:82%; max-width:100%; max-height:100%;}
+#pad button:active{transform:translateY(2px); filter:brightness(.95);}
+#pad button.done{opacity:.28;}
+#pad button .cnt{
+  position:absolute; right:4px; bottom:2px;
+  font-size:calc(11px * var(--u)); color:var(--sub); font-weight:700;
+}
+body.kids #pad button{box-shadow:0 3px 0 rgba(0,0,0,.12);}
+
+#tools{
+  flex:0 0 auto;
+  display:grid; grid-auto-flow:column; grid-auto-columns:1fr;
+  gap:calc(6px * var(--u));
+  --tf:15px; --ti:20px;               /* たかさ に あわせて JS が きめる */
+}
+#tools button{
+  min-height:0; overflow:hidden;
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:1px;
+  border:3px solid var(--btnEdge); border-radius:var(--radius);
+  background:var(--btn); color:var(--fg);
+  font-family:inherit; font-size:var(--tf); font-weight:700; line-height:1.1;
+  cursor:pointer; padding:2px;
+}
+#tools button:active{transform:translateY(2px);}
+#tools button .ic{font-size:var(--ti); line-height:1;}
+#tools button.on{background:var(--accent); color:var(--accentFg); border-color:var(--accent);}
+#tools button[disabled]{opacity:.35;}
+
+/* れんしゅう の しんちょく ●●○○○ */
+#steps{
+  flex:0 0 auto; display:flex; gap:6px; align-items:center; justify-content:center;
+  padding:2px 0;
+}
+#steps i{
+  width:calc(13px * var(--u)); height:calc(13px * var(--u));
+  border-radius:999px; background:#fff; border:2px solid var(--thick); display:block;
+}
+#steps i.on{background:var(--accent); border-color:var(--accent);}
+#steps i.now{transform:scale(1.45);}
+
+/* ===== かさねる がめん（せってい・おめでとう・かくにん）===== */
+#veil{
+  position:absolute; inset:0; z-index:50;
+  display:none; align-items:center; justify-content:center;
+  padding:calc(env(safe-area-inset-top) + 12px) 12px calc(env(safe-area-inset-bottom) + 12px);
+  background:rgba(20,24,29,.55);
+}
+#veil.on{display:flex;}
+.sheet{
+  width:100%; max-width:520px; max-height:100%;
+  overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;
+  background:var(--panel); color:var(--fg);
+  border:3px solid var(--thick); border-radius:16px;
+  padding:calc(14px * var(--u));
+  display:flex; flex-direction:column; gap:calc(10px * var(--u));
+}
+.sheet h2{margin:0; font-size:calc(24px * var(--u)); text-align:center;}
+.sheet p{margin:0; font-size:calc(16px * var(--u)); color:var(--sub); line-height:1.5; text-align:center;}
+.row{
+  display:flex; align-items:center; gap:10px;
+  border:2px solid var(--line); border-radius:var(--radius);
+  padding:calc(8px * var(--u)) calc(10px * var(--u));
+}
+.row .lab{flex:1 1 auto; font-size:calc(17px * var(--u)); font-weight:700;}
+.row .lab small{display:block; font-weight:500; font-size:calc(13px * var(--u)); color:var(--sub);}
+.seg{display:flex; gap:4px; flex:0 0 auto;}
+.seg button{
+  min-width:calc(52px * var(--u)); min-height:calc(44px * var(--u));
+  border:2px solid var(--btnEdge); border-radius:8px;
+  background:var(--btn); color:var(--fg);
+  font-family:inherit; font-size:calc(16px * var(--u)); font-weight:700; cursor:pointer;
+}
+.seg button.on{background:var(--accent); color:var(--accentFg); border-color:var(--accent);}
+.stars{font-size:calc(46px * var(--u)); text-align:center; letter-spacing:.08em; line-height:1.1;}
+.hooray{text-align:center;}
+.hooray svg{width:calc(120px * var(--u)); height:calc(120px * var(--u));}
+
+/* かみふぶき */
+#confetti{position:absolute; inset:0; pointer-events:none; z-index:60; display:none;}
+#confetti.on{display:block;}
+
+#ver{
+  position:absolute; right:4px; bottom:2px; z-index:5;
+  font-size:11px; color:var(--sub); opacity:.6;
+  background:rgba(255,255,255,.6); border-radius:5px; padding:0 5px;
+  pointer-events:none;
+}
+</style>
+</head>
+<body class="adult port">
+
+<div id="app">
+
+  <!-- ===== さいしょ の がめん ===== -->
+  <section id="scrHome" class="screen menu on">
+    <h1>みんなの ナンプレ<span class="small">おなじ ものが １つずつ ならぶ パズル</span></h1>
+    <div class="menuList" id="homeList"></div>
+  </section>
+
+  <!-- ===== こども メニュー ===== -->
+  <section id="scrKids" class="screen menu">
+    <h1>こども モード<span class="small">え を ならべて あそぼう</span></h1>
+    <div class="menuList" id="kidsList"></div>
+    <div class="backRow"><button class="mini" data-back>◀ もどる</button><span class="spacer"></span></div>
+  </section>
+
+  <!-- ===== おとな メニュー ===== -->
+  <section id="scrAdult" class="screen menu">
+    <h1>おとな モード<span class="small">9×9 の ナンプレ</span></h1>
+    <div class="menuList" id="adultList"></div>
+    <div class="backRow"><button class="mini" data-back>◀ もどる</button><span class="spacer"></span></div>
+  </section>
+
+  <!-- ===== ゲーム ===== -->
+  <section id="scrGame" class="screen">
+    <div id="bar">
+      <button id="btnBack" aria-label="メニューへ もどる">◀</button>
+      <span class="title" id="gTitle">ナンプレ</span>
+      <span class="stat" id="gStat"></span>
+      <button id="btnSet" aria-label="せってい">⚙</button>
+    </div>
+    <div id="stage">
+      <div id="boardWrap"><div id="board"></div></div>
+      <div id="side">
+        <div id="steps" hidden></div>
+        <div id="msg"></div>
+        <div id="pad"></div>
+        <div id="tools"></div>
+      </div>
+    </div>
+  </section>
+
+  <div id="veil"><div class="sheet" id="sheet"></div></div>
+  <canvas id="confetti"></canvas>
+  <div id="ver">v1</div>
+</div>
+
+<script>
+'use strict';
+/* =====================================================================
+   0. こまごました どうぐ
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const el = (tag, cls, html) => { const e = document.createElement(tag);
+  if(cls) e.className = cls; if(html != null) e.innerHTML = html; return e; };
+const rnd  = n => Math.floor(Math.random() * n);
+const shuffle = a => { for(let i = a.length - 1; i > 0; i--){ const j = rnd(i + 1);
+  const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
+
+const KEY = 'sudoku.v1';
+let store = { snd:true, ui:1, pics:'e', showBad:true, showSame:true, timer:false,
+              practice:0, best:{}, save:{} };
+try{ const s = JSON.parse(localStorage.getItem(KEY) || '{}');
+     Object.assign(store, s); }catch(e){}
+function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){} }
+
+/* =====================================================================
+   1. おと（その場で つくる。おんげんファイルは つかわない）
+   ===================================================================== */
+let ac = null;
+function actx(){
+  if(!ac){ const C = window.AudioContext || window.webkitAudioContext; if(C) ac = new C(); }
+  if(ac && ac.state === 'suspended') ac.resume();
+  return ac;
+}
+function beep(freq, dur, when, vol, type){
+  const c = actx(); if(!c || !store.snd) return;
+  const t = c.currentTime + (when || 0);
+  const o = c.createOscillator(), g = c.createGain();
+  o.type = type || 'sine'; o.frequency.setValueAtTime(freq, t);
+  g.gain.setValueAtTime(0, t);
+  g.gain.linearRampToValueAtTime(vol == null ? .18 : vol, t + .012);
+  g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+  o.connect(g); g.connect(c.destination); o.start(t); o.stop(t + dur + .02);
+}
+const SND = {
+  tap:   () => beep(520, .07, 0, .10, 'triangle'),
+  put:   () => { beep(660, .10, 0, .13, 'triangle'); beep(990, .12, .06, .09, 'sine'); },
+  ng:    () => { beep(200, .16, 0, .12, 'sawtooth'); beep(150, .18, .09, .10, 'sawtooth'); },
+  erase: () => beep(300, .09, 0, .09, 'sine'),
+  hint:  () => { beep(880, .10, 0, .10); beep(1175, .12, .07, .09); },
+  clear: () => [523, 659, 784, 1047].forEach((f, i) => beep(f, .35, i * .11, .16, 'triangle')),
+  step:  () => [784, 988].forEach((f, i) => beep(f, .22, i * .10, .14, 'triangle'))
+};
+
+/* =====================================================================
+   2. え（4x4・6x6 で つかう 6しゅるい）
+      いろ だけ でなく かたち も ぜんぶ ちがう ので、
+      いろ が みわけにくい 人 でも わかる。
+   ===================================================================== */
+const PICS = [
+  null,
+  { name:'りんご',   col:'#e5484d', d:'<circle cx="38" cy="60" r="27" fill="#e5484d"/><circle cx="62" cy="60" r="27" fill="#e5484d"/><path d="M50 34c0-12 4-18 4-18" stroke="#7a4a20" stroke-width="7" fill="none" stroke-linecap="round"/><path d="M54 24c10-8 20-6 20-6s-2 12-14 13z" fill="#3aa64a"/><circle cx="38" cy="52" r="7" fill="#fff" opacity=".55"/>' },
+  { name:'ほし',     col:'#f5a524', d:'<path d="M50 12 61 40 91 42 68 61 76 90 50 74 24 90 32 61 9 42 39 40z" fill="#f5a524" stroke="#c97f10" stroke-width="4" stroke-linejoin="round"/>' },
+  { name:'さかな',   col:'#2f7fe0', d:'<path d="M88 50 66 32v36z" fill="#1f63b8"/><ellipse cx="43" cy="50" rx="34" ry="24" fill="#2f7fe0"/><circle cx="26" cy="44" r="7" fill="#fff"/><circle cx="24" cy="44" r="3.6" fill="#12305c"/><path d="M44 30c6 8 6 32 0 40" stroke="#1f63b8" stroke-width="5" fill="none"/>' },
+  { name:'はっぱ',   col:'#2fa84f', d:'<path d="M50 8C82 26 88 62 50 94 12 62 18 26 50 8z" fill="#2fa84f" stroke="#1d7a37" stroke-width="4"/><path d="M50 16v72" stroke="#1d7a37" stroke-width="5" stroke-linecap="round"/><path d="M50 40 32 30M50 56 30 48M50 40l18-10M50 56l20-8" stroke="#1d7a37" stroke-width="4" stroke-linecap="round"/>' },
+  { name:'おはな',   col:'#e05fa0', d:'<g fill="#e05fa0" stroke="#b23d7c" stroke-width="3"><circle cx="50" cy="24" r="17"/><circle cx="76" cy="43" r="17"/><circle cx="66" cy="74" r="17"/><circle cx="34" cy="74" r="17"/><circle cx="24" cy="43" r="17"/></g><circle cx="50" cy="52" r="15" fill="#ffd23f" stroke="#c99a12" stroke-width="3"/>' },
+  { name:'ぶどう',   col:'#8b5cf6', d:'<path d="M50 22c0-10 8-14 8-14" stroke="#5b3a12" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M58 12c10-6 18-2 18-2s-6 10-16 8z" fill="#3aa64a"/><g fill="#8b5cf6" stroke="#6636d6" stroke-width="3"><circle cx="50" cy="34" r="13"/><circle cx="34" cy="52" r="13"/><circle cx="66" cy="52" r="13"/><circle cx="50" cy="58" r="13"/><circle cx="42" cy="76" r="13"/><circle cx="58" cy="76" r="13"/></g>' }
+];
+function picSvg(d, cls){
+  const p = PICS[d]; if(!p) return '';
+  return '<svg viewBox="0 0 100 100"' + (cls ? ' class="' + cls + '"' : '') +
+         ' aria-label="' + p.name + '">' + p.d + '</svg>';
+}
+/* ちいさい え（せつめい文 の なか に まぜる）*/
+function picInline(d){ return picSvg(d); }
+
+/* =====================================================================
+   3. ナンプレ の エンジン
+      size = 4 / 6 / 9。おへや の おおきさ は bw × bh。
+      ぜんぶ ビット（1<<(d-1)）で もつ ので はやい。
+   ===================================================================== */
+const SHAPE = { 4:{bw:2, bh:2}, 6:{bw:3, bh:2}, 9:{bw:3, bh:3} };
+function ctxOf(size){
+  const s = SHAPE[size], n = size, bw = s.bw, bh = s.bh;
+  const boxOf = new Int8Array(n * n), rowOf = new Int8Array(n * n), colOf = new Int8Array(n * n);
+  const peers = [];
+  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++){
+    const i = r * n + c;
+    rowOf[i] = r; colOf[i] = c;
+    boxOf[i] = Math.floor(r / bh) * (n / bw) + Math.floor(c / bw);
+  }
+  for(let i = 0; i < n * n; i++){
+    const set = [];
+    for(let j = 0; j < n * n; j++){
+      if(j === i) continue;
+      if(rowOf[j] === rowOf[i] || colOf[j] === colOf[i] || boxOf[j] === boxOf[i]) set.push(j);
+    }
+    peers.push(set);
+  }
+  /* れつ・たて・おへや の 27（9x9のとき）グループ */
+  const units = [];
+  for(let r = 0; r < n; r++){ const u = []; for(let c = 0; c < n; c++) u.push(r * n + c); units.push({ k:'row', idx:r, cells:u }); }
+  for(let c = 0; c < n; c++){ const u = []; for(let r = 0; r < n; r++) u.push(r * n + c); units.push({ k:'col', idx:c, cells:u }); }
+  for(let b = 0; b < n; b++){
+    const u = []; for(let i = 0; i < n * n; i++) if(boxOf[i] === b) u.push(i);
+    units.push({ k:'box', idx:b, cells:u });
+  }
+  const unitsOf = [];
+  for(let i = 0; i < n * n; i++) unitsOf.push(units.filter(u => u.cells.indexOf(i) >= 0));
+  const ALL = (1 << n) - 1;
+  return { n, bw, bh, rowOf, colOf, boxOf, peers, units, unitsOf, ALL };
+}
+const CTX = { 4:ctxOf(4), 6:ctxOf(6), 9:ctxOf(9) };
+const bitCount = m => { let c = 0; while(m){ m &= m - 1; c++; } return c; };
+const lowBit   = m => Math.log2(m & -m) + 1;   /* ビット → すうじ */
+
+/* こたえ を かぞえる（limit こ みつけたら やめる）*/
+function countSolutions(grid, X, limit){
+  const n = X.n, N = n * n, g = grid.slice();
+  const used = new Int32Array(N);              /* その ます で つかえない ビット */
+  for(let i = 0; i < N; i++) if(g[i]){
+    const b = 1 << (g[i] - 1);
+    for(const p of X.peers[i]) used[p] |= b;
+  }
+  let found = 0;
+  (function rec(){
+    if(found >= limit) return;
+    /* いちばん こうほ の すくない ます を えらぶ */
+    let best = -1, bestC = 99, bestM = 0;
+    for(let i = 0; i < N; i++){
+      if(g[i]) continue;
+      const m = X.ALL & ~used[i], c = bitCount(m);
+      if(c === 0) return;
+      if(c < bestC){ bestC = c; best = i; bestM = m; if(c === 1) break; }
+    }
+    if(best < 0){ found++; return; }
+    let m = bestM;
+    while(m){
+      const b = m & -m; m ^= b;
+      const d = lowBit(b);
+      g[best] = d;
+      const touched = [];
+      for(const p of X.peers[best]) if(!(used[p] & b)){ used[p] |= b; touched.push(p); }
+      rec();
+      for(const p of touched) used[p] &= ~b;
+      g[best] = 0;
+      if(found >= limit) return;
+    }
+  })();
+  return found;
+}
+
+/* こたえ を ぜんぶ うめた ばん を つくる */
+function fullGrid(size){
+  const X = CTX[size], n = X.n, N = n * n, g = new Int8Array(N), used = new Int32Array(N);
+  const ok = (function rec(){
+    let best = -1, bestC = 99, bestM = 0;
+    for(let i = 0; i < N; i++){
+      if(g[i]) continue;
+      const m = X.ALL & ~used[i], c = bitCount(m);
+      if(c === 0) return false;
+      if(c < bestC){ bestC = c; best = i; bestM = m; }
+    }
+    if(best < 0) return true;
+    const ds = [];
+    let m = bestM;
+    while(m){ const b = m & -m; m ^= b; ds.push(b); }
+    shuffle(ds);
+    for(const b of ds){
+      g[best] = lowBit(b);
+      const touched = [];
+      for(const p of X.peers[best]) if(!(used[p] & b)){ used[p] |= b; touched.push(p); }
+      if(rec()) return true;
+      for(const p of touched) used[p] &= ~b;
+      g[best] = 0;
+    }
+    return false;
+  })();
+  return ok ? g : fullGrid(size);
+}
+
+/* =====================================================================
+   4. 「人が とく やりかた」で とけるか しらべる ＝ むずかしさ の ものさし
+      れべる 0 …… ここだけ しか はいらない（たんいつ こうほ）
+            1 …… この れつ では ここ だけ（かくれた たんいつ）
+            2 …… おへや と れつ の かさなり（ちょくせん さくじょ）
+            3 …… ２つ ペア
+            4 …… それ いじょう（さいごは しらみつぶし）
+   ===================================================================== */
+function logicSolve(grid, X, maxLevel){
+  const n = X.n, N = n * n;
+  const val = grid.slice(), cand = new Int32Array(N);
+  let left = 0;
+  for(let i = 0; i < N; i++){ if(!val[i]){ cand[i] = X.ALL; left++; } }
+  for(let i = 0; i < N; i++) if(val[i]){
+    const b = 1 << (val[i] - 1);
+    for(const p of X.peers[i]) cand[p] &= ~b;
+  }
+  let used = 0;
+  const place = (i, d) => {
+    const b = 1 << (d - 1);
+    if(!(cand[i] & b)) return false;
+    val[i] = d; cand[i] = 0; left--;
+    for(const p of X.peers[i]) cand[p] &= ~b;
+    return true;
+  };
+  for(let i = 0; i < N; i++) if(!val[i] && cand[i] === 0) return { solved:false, level:9 };
+
+  while(left > 0){
+    let moved = false;
+
+    /* れべる0：こうほ が １つ しか ない ます */
+    for(let i = 0; i < N && !moved; i++)
+      if(!val[i] && bitCount(cand[i]) === 1){ place(i, lowBit(cand[i])); moved = true; }
+    if(moved) continue;
+
+    /* れべる1：その グループ で そこ に しか おけない すうじ */
+    if(maxLevel >= 1){
+      for(const u of X.units){
+        for(let d = 1; d <= n && !moved; d++){
+          const b = 1 << (d - 1);
+          let spot = -1, cnt = 0, have = false;
+          for(const i of u.cells){
+            if(val[i] === d){ have = true; break; }
+            if(!val[i] && (cand[i] & b)){ cnt++; spot = i; }
+          }
+          if(!have && cnt === 1){ place(spot, d); moved = true; used = Math.max(used, 1); }
+        }
+        if(moved) break;
+      }
+      if(moved) continue;
+    }
+
+    /* れべる2：おへや の なか で ある すうじ が １れつ に かたまって いたら、
+       その れつ の おへや の そと から その すうじ を けせる（ぎゃく も おなじ）*/
+    if(maxLevel >= 2){
+      for(const u of X.units){
+        for(let d = 1; d <= n && !moved; d++){
+          const b = 1 << (d - 1);
+          const spots = [];
+          let have = false;
+          for(const i of u.cells){ if(val[i] === d){ have = true; break; }
+                                   if(!val[i] && (cand[i] & b)) spots.push(i); }
+          if(have || spots.length < 2 || spots.length > 3) continue;
+          const sameRow = spots.every(i => X.rowOf[i] === X.rowOf[spots[0]]);
+          const sameCol = spots.every(i => X.colOf[i] === X.colOf[spots[0]]);
+          const sameBox = spots.every(i => X.boxOf[i] === X.boxOf[spots[0]]);
+          const targets = [];
+          if(u.k === 'box'){
+            if(sameRow) for(let c = 0; c < n; c++){ const j = X.rowOf[spots[0]] * n + c;
+              if(X.boxOf[j] !== u.idx) targets.push(j); }
+            if(sameCol) for(let r = 0; r < n; r++){ const j = r * n + X.colOf[spots[0]];
+              if(X.boxOf[j] !== u.idx) targets.push(j); }
+          }else if(sameBox){
+            for(let j = 0; j < N; j++)
+              if(X.boxOf[j] === X.boxOf[spots[0]] && spots.indexOf(j) < 0) targets.push(j);
+          }
+          for(const j of targets) if(!val[j] && (cand[j] & b)){ cand[j] &= ~b; moved = true; }
+          if(moved) used = Math.max(used, 2);
+        }
+        if(moved) break;
+      }
+      if(moved) continue;
+    }
+
+    /* れべる3：おなじ ２つ の こうほ を もつ ます が ２つ ならんだら（ペア）、
+       その グループ の ほか から その ２つ を けせる */
+    if(maxLevel >= 3){
+      for(const u of X.units){
+        const open = u.cells.filter(i => !val[i]);
+        for(let a = 0; a < open.length && !moved; a++){
+          if(bitCount(cand[open[a]]) !== 2) continue;
+          for(let b2 = a + 1; b2 < open.length && !moved; b2++){
+            if(cand[open[b2]] !== cand[open[a]]) continue;
+            const m = cand[open[a]];
+            for(const j of open) if(j !== open[a] && j !== open[b2] && (cand[j] & m)){
+              cand[j] &= ~m; moved = true;
+            }
+            if(moved) used = Math.max(used, 3);
+          }
+        }
+        if(moved) break;
+      }
+      if(moved) continue;
+    }
+
+    return { solved:false, level:9 };
+  }
+  return { solved:true, level:used, val };
+}
+
+/* もんだい を つくる。
+   maxLevel いない の わざ だけ で とける ように ます を けずる ので、
+   むずかしさ が きちんと そろう（かつ こたえ は かならず １とおり）。 */
+function makePuzzle(size, opt){
+  opt = opt || {};
+  const X = CTX[size], N = size * size;
+  const maxLevel = opt.maxLevel == null ? 1 : opt.maxLevel;
+  const minGivens = opt.minGivens || 0;
+  const symmetric = !!opt.symmetric;
+  const t0 = Date.now();
+
+  for(let attempt = 0; attempt < 40; attempt++){
+    const sol = fullGrid(size);
+    const g = sol.slice();
+    let givens = N;
+    const order = [];
+    if(symmetric){
+      for(let i = 0; i < N; i++){ const j = N - 1 - i; if(i <= j) order.push(i === j ? [i] : [i, j]); }
+    }else{
+      for(let i = 0; i < N; i++) order.push([i]);
+    }
+    shuffle(order);
+    for(const grp of order){
+      if(givens - grp.length < minGivens) continue;
+      const keep = grp.map(i => g[i]);
+      grp.forEach(i => g[i] = 0);
+      let ok;
+      if(maxLevel >= 4) ok = countSolutions(g, X, 2) === 1;
+      else ok = logicSolve(g, X, maxLevel).solved;
+      if(ok) givens -= grp.length;
+      else grp.forEach((i, k) => g[i] = keep[k]);
+    }
+    /* じっさい に どの わざ が いる もんだい に なったか を みる。
+       たりない（かんたん すぎる）とき は つくりなおす。 */
+    let lv;
+    if(maxLevel >= 4){ const r3 = logicSolve(g, X, 3); lv = r3.solved ? r3.level : 4; }
+    else lv = logicSolve(g, X, maxLevel).level;
+    const enough = opt.minLevel == null || lv >= opt.minLevel;
+    if(enough || Date.now() - t0 > 1200)
+      return { puzzle:g, solution:sol, givens, level:lv };
+  }
+  const sol = fullGrid(size);
+  return { puzzle:sol.slice(), solution:sol, givens:N, level:0 };
+}
+
+/* ます を ちょうど k こ あける（れんしゅう よう。かならず １とおり）*/
+function makeHoles(size, k){
+  const X = CTX[size], N = size * size;
+  for(let a = 0; a < 60; a++){
+    const sol = fullGrid(size), g = sol.slice();
+    const order = shuffle([...Array(N).keys()]);
+    let holes = 0;
+    for(const i of order){
+      if(holes >= k) break;
+      const keep = g[i]; g[i] = 0;
+      if(countSolutions(g, X, 2) === 1) holes++; else g[i] = keep;
+    }
+    if(holes >= k) return { puzzle:g, solution:sol };
+  }
+  const sol = fullGrid(size);
+  return { puzzle:sol.slice(), solution:sol };
+}
+/* =====================================================================
+   5. むずかしさ の ひょう
+   ===================================================================== */
+const KIDS = [
+  { id:'k4a', size:4, maxLevel:0, minGivens:10, icon:'🌱', name:'4×4 やさしい',  sub:'6ます だけ あいて います。はじめて の 人 は これ' },
+  { id:'k4b', size:4, maxLevel:1, minGivens:7,  icon:'🌼', name:'4×4 ふつう',    sub:'9ます あいて います' },
+  { id:'k6a', size:6, maxLevel:0, minGivens:22, icon:'🌳', name:'6×6 やさしい',  sub:'え が 6しゅるい に ふえます' },
+  { id:'k6b', size:6, maxLevel:1, minGivens:17, icon:'🏆', name:'6×6 ちょうせん', sub:'すこし むずかしい' }
+];
+const ADULT = [
+  { id:'a1', size:9, maxLevel:1, minGivens:34,             symmetric:true, icon:'①', name:'やさしい',         sub:'34ます が さいしょ から あります。たてよこ を みれば わかります' },
+  { id:'a2', size:9, maxLevel:2, minGivens:30, minLevel:1, symmetric:true, icon:'②', name:'ふつう',           sub:'「この れつ では ここ だけ」を さがす もんだい' },
+  { id:'a3', size:9, maxLevel:3, minGivens:26, minLevel:2, symmetric:true, icon:'③', name:'むずかしい',       sub:'メモ を つかうと とけます' },
+  { id:'a4', size:9, maxLevel:4, minGivens:22, minLevel:4, symmetric:true, icon:'④', name:'とても むずかしい', sub:'じっくり どうぞ' }
+];
+const LV = {}; [...KIDS, ...ADULT].forEach(l => LV[l.id] = l);
+
+/* =====================================================================
+   6. がめん の きりかえ
+   ===================================================================== */
+const SCREENS = ['scrHome', 'scrKids', 'scrAdult', 'scrGame'];
+let scrNow = 'scrHome';
+function show(id){
+  SCREENS.forEach(s => $(s).classList.toggle('on', s === id));
+  scrNow = id;
+  if(id === 'scrKids') document.body.className = bodyCls('kids');
+  else if(id === 'scrAdult') document.body.className = bodyCls('adult');
+  else if(id === 'scrHome') document.body.className = bodyCls('adult');
+  layout();
+}
+function bodyCls(theme){
+  const w = innerWidth, h = innerHeight;
+  return theme + ' ' + (w > h * 1.15 ? 'land' : 'port');
+}
+
+/* --- さいしょ の がめん --- */
+function buildHome(){
+  const L = $('homeList'); L.innerHTML = '';
+  const b1 = el('button', 'big kidsCard wide',
+    '<span class="ico">🧒</span><span class="txt">こども モード' +
+    '<span class="sub">え を つかった 4×4・6×6。ルール を おしえる れんしゅう つき</span></span>');
+  b1.onclick = () => { SND.tap(); show('scrKids'); };
+  const b2 = el('button', 'big adultCard wide',
+    '<span class="ico">🔢</span><span class="txt">おとな モード' +
+    '<span class="sub">9×9 の ふつう の ナンプレ。もじ は 大きめ</span></span>');
+  b2.onclick = () => { SND.tap(); show('scrAdult'); };
+  const b3 = el('button', 'mini wide', '⚙ せってい（もじの おおきさ・おと）');
+  b3.onclick = () => { SND.tap(); openSettings(); };
+  const b4 = el('button', 'mini wide', '🎹 ピアノ の アプリ へ');
+  b4.onclick = () => { location.href = '../index.html'; };
+  L.append(b1, b2, b3, b4);
+}
+
+/* --- こども メニュー --- */
+function buildKids(){
+  const L = $('kidsList'); L.innerHTML = '';
+  const done = store.practice >= PRACTICE.length;
+  const p = el('button', 'big pri wide',
+    '<span class="ico">🎓</span><span class="txt">れんしゅう（ルール を おぼえる）' +
+    '<span class="sub">' + (done ? 'ぜんぶ クリア！ もういちど できます'
+      : store.practice > 0 ? (store.practice + 1) + 'ばんめ から はじめます'
+      : 'はじめて の 人 は ここ から。5つの ステップ') + '</span></span>' +
+    '<span class="badge' + (done ? ' clear' : '') + '">' + store.practice + '/' + PRACTICE.length + '</span>');
+  p.onclick = () => { SND.tap(); startPractice(done ? 0 : store.practice); };
+  L.append(p);
+  KIDS.forEach(lv => L.append(levelButton(lv)));
+}
+
+/* --- おとな メニュー --- */
+function buildAdult(){
+  const L = $('adultList'); L.innerHTML = '';
+  ADULT.forEach(lv => L.append(levelButton(lv)));
+  const s = el('button', 'mini wide', '⚙ せってい');
+  s.onclick = () => { SND.tap(); openSettings(); };
+  L.append(s);
+}
+
+function levelButton(lv){
+  const sv = store.save[lv.id];
+  const best = store.best[lv.id];
+  let sub = lv.sub;
+  if(sv) sub = 'とちゅう の もんだい が あります（のこり ' + sv.left + '）';
+  else if(best) sub = lv.sub + ' ／ これまで ' + best.n + 'かい クリア';
+  const b = el('button', 'big',
+    '<span class="ico">' + lv.icon + '</span><span class="txt">' + lv.name +
+    '<span class="sub">' + sub + '</span></span>' +
+    (sv ? '<span class="badge">つづき</span>' : ''));
+  b.onclick = () => { SND.tap(); if(sv) askResume(lv); else newGame(lv, null); };
+  return b;
+}
+
+/* =====================================================================
+   7. わりつけ（たて／よこ どちら でも つかえる ように JS で けいさん）
+   ===================================================================== */
+function layout(){
+  const w = innerWidth, h = innerHeight;
+  const land = w > h * 1.15;
+  document.body.classList.toggle('land', land);
+  document.body.classList.toggle('port', !land);
+  document.documentElement.style.setProperty('--u', store.ui);
+  document.body.style.setProperty('--u', store.ui);
+
+  if(scrNow !== 'scrGame' || !G) return;
+  const stage = $('stage'), cs = getComputedStyle(stage);
+  const availW = stage.clientWidth  - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const availH = stage.clientHeight - parseFloat(cs.paddingTop)  - parseFloat(cs.paddingBottom);
+  const gap = 8 * store.ui;
+  /* ばん に どれだけ ばしょ を あげるか。パッド と メッセージ が つぶれない ように */
+  /* --- よこ の パネル（メッセージ・パッド・どうぐ）に いる たかさ を さきに きめる。
+     パッド の ボタン は 「ゆび で おせる おおきさ」を かならず のこす。
+     もじ を 特大 に した とき は ばん の ほう を ちいさく する。 --- */
+  const u    = store.ui;
+  const g2   = Math.min(6 * u, 9);                       /* パネル の なか の すきま */
+  const nPad = G.size, padCols = nPad === 4 ? 2 : 3;
+  const padRows = Math.ceil(nPad / padCols);
+  const sideH0  = land ? availH : availH;                /* たて の ときは あとで へる */
+
+  const toolsH = Math.round(Math.max(42, Math.min(54 * u, sideH0 * .14)));
+  const msgMin = Math.round(Math.max(36, Math.min(46 * u, sideH0 * .12)));
+  const btnMin  = 38;                                    /* ぜったい に これ より ちいさく しない */
+  const btnWant = Math.min(64, Math.max(44, 52 * u));    /* ゆび で おしやすい たかさ */
+  const padMin  = padRows * btnMin  + (padRows - 1) * g2;
+  const padWant = padRows * btnWant + (padRows - 1) * g2;
+  const sideMin  = toolsH + msgMin + padMin  + 2 * g2;
+  const sideWant = toolsH + msgMin + padWant + 2 * g2;
+
+  /* ばん の おおきさ（のこり の ばしょ から）*/
+  /* ばしょ が たっぷり ある とき（iPad など）は ばん が ふとりすぎない ように
+     わりあい でも おさえる。ちいさい がめん では sideMin の ほう が きく。 */
+  const share = G.mode === 'practice' ? .52 : (G.mode === 'kids' ? .62 : .60);
+  const boardMaxW = land ? Math.min((availW - gap) * .62, availW - gap - 240) : availW;
+  let boardMaxH;
+  if(land) boardMaxH = availH;
+  else{
+    /* まず パッド に 「おしやすい たかさ」を あげる。
+       それ で ばん が ちいさく なりすぎる とき だけ パッド を さいてい たかさ まで へらす。*/
+    boardMaxH = Math.min(availH * share, availH - gap - sideWant);
+    if(boardMaxH / G.rows < 30)
+      boardMaxH = Math.min(availH * share, availH - gap - sideMin);
+    boardMaxH = Math.max(24 * G.rows, boardMaxH);
+  }
+  let cw = Math.floor(Math.min(boardMaxW / G.cols, boardMaxH / G.rows));
+  cw = Math.max(24, cw);
+  const bWpx = cw * G.cols, bHpx = cw * G.rows;
+
+  const wrap = $('boardWrap'), side = $('side'), board = $('board');
+  if(land) wrap.style.cssText = 'flex:0 0 ' + bWpx + 'px; width:' + bWpx + 'px;';
+  else     wrap.style.cssText = 'flex:0 0 ' + bHpx + 'px; height:' + bHpx + 'px;';
+  side.style.cssText = 'flex:1 1 auto; width:auto; min-width:0;';
+  board.style.width  = bWpx + 'px';
+  board.style.height = bHpx + 'px';
+  board.style.setProperty('--cs', cw + 'px');
+
+  /* パネル の わりふり を px で きめる（flex に まかせない）*/
+  const sideH = land ? availH : Math.max(120, availH - gap - bHpx);
+  /* ながい せつめい が でて も パッド は 46px より ちいさく しない。
+     はみだした ぶん は メッセージ の なか で スクロール させる。 */
+  const padKeep = padRows * 46 + (padRows - 1) * g2;
+  const msgMax = Math.max(msgMin, sideH - toolsH - padKeep - 2 * g2);
+  const msg = $('msg'), tools = $('tools');
+  msg.style.minHeight = msgMin + 'px';
+  msg.style.maxHeight = Math.round(msgMax) + 'px';
+  tools.style.height  = toolsH + 'px';
+  tools.style.setProperty('--tf', Math.round(Math.min(15 * u, toolsH * .30)) + 'px');
+  tools.style.setProperty('--ti', Math.round(Math.min(20 * u, toolsH * .36)) + 'px');
+
+  requestAnimationFrame(() => {
+    const b = $('pad').firstElementChild;
+    if(b){
+      const r = b.getBoundingClientRect();
+      const f = Math.max(15, Math.floor(Math.min(r.height * .52, r.width * .62)));
+      $('pad').style.setProperty('--pf', f + 'px');
+    }
+  });
+}
+addEventListener('resize', layout);
+addEventListener('orientationchange', () => setTimeout(layout, 250));
+
+/* =====================================================================
+   8. ゲーム の じょうたい
+   ===================================================================== */
+let G = null;
+
+function newGame(lv, saved){
+  const spec = typeof lv === 'string' ? LV[lv] : lv;
+  const kids = spec.size < 9;
+  G = {
+    mode: kids ? 'kids' : 'adult',
+    lv: spec, size: spec.size, cols: spec.size, rows: spec.size,
+    X: CTX[spec.size], bw: SHAPE[spec.size].bw, bh: SHAPE[spec.size].bh,
+    sel: -1, undo: [], hints: 0, mistakes: 0, done: false,
+    memoOn: false, t0: Date.now(), elapsed: 0
+  };
+  document.body.className = bodyCls(kids ? 'kids' : 'adult');
+  show('scrGame');
+  $('gTitle').textContent = spec.name;
+  $('steps').hidden = true;
+
+  if(saved){
+    G.puzzle   = Int8Array.from(saved.p);
+    G.solution = Int8Array.from(saved.s);
+    G.cells    = Int8Array.from(saved.c);
+    G.memo     = Int32Array.from(saved.m || new Array(spec.size * spec.size).fill(0));
+    G.elapsed  = saved.e || 0; G.t0 = Date.now();
+    G.hints    = saved.h || 0;
+    buildBoard(); buildPad(); buildTools(); paint();
+    say('つづき から どうぞ。');
+  }else{
+    buildBoard(); buildPad(); buildTools();
+    say('もんだい を つくって います…');
+    setTimeout(() => {
+      const r = makePuzzle(spec.size, spec);
+      G.puzzle = r.puzzle; G.solution = r.solution;
+      G.cells = r.puzzle.slice();
+      G.memo = new Int32Array(spec.size * spec.size);
+      G.t0 = Date.now(); G.elapsed = 0;
+      paint();
+      say(kids ? 'ます を おして、え を えらんで ね。'
+               : 'ます を えらんで、すうじ を おしてください。');
+      saveGame();
+    }, 30);
+  }
+}
+
+/* =====================================================================
+   9. ばん の くみたて と いろぬり
+   ===================================================================== */
+function buildBoard(){
+  const b = $('board'); b.innerHTML = '';
+  b.style.gridTemplateColumns = 'repeat(' + G.cols + ', 1fr)';
+  b.style.gridTemplateRows    = 'repeat(' + G.rows + ', 1fr)';
+  for(let r = 0; r < G.rows; r++) for(let c = 0; c < G.cols; c++){
+    const i = r * G.cols + c;
+    const cell = el('div', 'cell');
+    if(r === 0) cell.classList.add('r0');
+    if(c === 0) cell.classList.add('c0');
+    if(r % G.bh === 0 && r > 0) cell.classList.add('bt');
+    if(c % G.bw === 0 && c > 0) cell.classList.add('bl');
+    cell.dataset.i = i;
+    cell.append(el('div', 'v'), el('div', 'memo'));
+    b.append(cell);
+  }
+  layout();
+}
+
+function cellEls(){ return $('board').children; }
+
+/* まちがい を さがす。「まちがい を おしえる」が ON の とき だけ。
+   こたえ と くらべる ので、たてよこ が ぶつかる まえ に わかる。 */
+function findBad(){
+  const bad = new Set();
+  if(G.mode !== 'adult' || !store.showBad) return bad;
+  for(let i = 0; i < G.cells.length; i++)
+    if(!G.puzzle[i] && G.cells[i] && G.cells[i] !== G.solution[i]) bad.add(i);
+  return bad;
+}
+
+function paint(){
+  if(!G || !G.cells) return;
+  const els = cellEls(), bad = findBad();
+  const selV = G.sel >= 0 ? G.cells[G.sel] : 0;
+  const X = G.X;
+  for(let i = 0; i < G.cells.length; i++){
+    const e = els[i]; if(!e) continue;
+    const v = G.cells[i], given = G.puzzle[i] !== 0;
+    e.className = 'cell' +
+      (i < G.cols ? ' r0' : '') + (i % G.cols === 0 ? ' c0' : '') +
+      (Math.floor(i / G.cols) % G.bh === 0 && i >= G.cols ? ' bt' : '') +
+      (i % G.cols % G.bw === 0 && i % G.cols > 0 ? ' bl' : '');
+    if(!given && v) e.classList.add(G.hintCells && G.hintCells.has(i) ? 'hintv' : 'user');
+    if(bad.has(i)) e.classList.add('bad');
+    if(G.sel >= 0 && i !== G.sel && G.mode !== 'practice'){
+      if(X.rowOf[i] === X.rowOf[G.sel] || X.colOf[i] === X.colOf[G.sel] ||
+         X.boxOf[i] === X.boxOf[G.sel]) e.classList.add('rel');
+      if(selV && v === selV && (store.showSame || G.mode !== 'adult')) e.classList.add('same');
+    }
+    if(i === G.sel) e.classList.add('sel');
+    if(G.markCell === i) e.classList.add('mark');
+
+    const vd = e.firstElementChild, md = e.lastElementChild;
+    if(v){
+      vd.innerHTML = usePics() ? picSvg(v) : String(v);
+      md.innerHTML = '';
+    }else{
+      vd.innerHTML = '';
+      md.innerHTML = memoHtml(G.memo ? G.memo[i] : 0);
+      md.style.gridTemplateColumns = 'repeat(' + G.bw + ',1fr)';
+      md.style.gridTemplateRows    = 'repeat(' + (G.size / G.bw) + ',1fr)';
+    }
+  }
+  updateStat();
+  updatePadCounts();
+}
+function usePics(){ return G.mode !== 'adult' && store.pics === 'e'; }
+function memoHtml(m){
+  if(!m) return '';
+  let s = '';
+  for(let d = 1; d <= G.size; d++) s += '<span>' + ((m >> (d - 1)) & 1 ? d : '') + '</span>';
+  return s;
+}
+function leftCount(){ let n = 0; for(let i = 0; i < G.cells.length; i++) if(!G.cells[i]) n++; return n; }
+function updateStat(){
+  if(G.mode === 'practice'){ $('gStat').textContent = ''; return; }
+  let t = 'のこり ' + leftCount();
+  if(G.mode === 'adult' && store.timer) t += ' ／ ' + fmtTime(elapsedMs());
+  $('gStat').textContent = t;
+}
+function elapsedMs(){ return G.elapsed + (G.done ? 0 : Date.now() - G.t0); }
+function fmtTime(ms){
+  const s = Math.floor(ms / 1000);
+  return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+setInterval(() => { if(G && !G.done && scrNow === 'scrGame' && store.timer && G.mode === 'adult') updateStat(); }, 1000);
+
+function say(html, kind){
+  const m = $('msg');
+  m.className = kind ? kind : '';
+  m.innerHTML = html;
+}
+/* =====================================================================
+   10. パッド（すうじ／え）と どうぐ
+   ===================================================================== */
+function buildPad(){
+  const p = $('pad'); p.innerHTML = '';
+  const n = G.size;
+  const cols = n === 4 ? 2 : 3;
+  p.style.gridTemplateColumns = 'repeat(' + cols + ',1fr)';
+  p.style.gridTemplateRows    = 'repeat(' + Math.ceil(n / cols) + ',1fr)';
+  for(let d = 1; d <= n; d++){
+    const b = el('button', '', usePics() ? picSvg(d) : String(d));
+    b.dataset.d = d;
+    b.setAttribute('aria-label', usePics() ? PICS[d].name : String(d));
+    if(G.mode === 'adult') b.append(el('span', 'cnt'));
+    b.onpointerdown = ev => { ev.preventDefault(); onPad(d); };
+    p.append(b);
+  }
+}
+function updatePadCounts(){
+  if(!G || G.mode !== 'adult') return;
+  const p = $('pad');
+  for(const b of p.children){
+    const d = +b.dataset.d;
+    let used = 0;
+    for(let i = 0; i < G.cells.length; i++) if(G.cells[i] === d) used++;
+    const c = b.querySelector('.cnt');
+    if(c) c.textContent = used >= G.size ? '' : (G.size - used);
+    b.classList.toggle('done', used >= G.size);
+  }
+}
+function buildTools(){
+  const t = $('tools'); t.innerHTML = '';
+  const mk = (id, ic, lab, fn) => {
+    const b = el('button', '', '<span class="ic">' + ic + '</span>' + lab);
+    b.id = 'tool' + id;
+    b.onpointerdown = ev => { ev.preventDefault(); fn(); };
+    t.append(b); return b;
+  };
+  if(G.mode === 'practice'){
+    mk('Why', '❓', 'なぜ？',        practiceWhy);
+    mk('New', '🔁', 'べつの もんだい', practiceNewQ);
+    return;
+  }
+  mk('Undo',  '↩️', 'もどす', undo);
+  mk('Erase', '🧽', 'けす',   erase);
+  if(G.mode === 'adult') mk('Memo', '✏️', 'メモ', toggleMemo);
+  mk('Hint', G.mode === 'adult' ? '💡' : '🔍', G.mode === 'adult' ? 'ヒント' : 'おしえて', hint);
+}
+function toggleMemo(){
+  G.memoOn = !G.memoOn;
+  $('toolMemo').classList.toggle('on', G.memoOn);
+  say(G.memoOn ? 'メモ モード です。すうじ を おすと ちいさく かきこみます。'
+               : 'ふつう の にゅうりょく に もどりました。');
+  SND.tap();
+}
+
+/* =====================================================================
+   11. にゅうりょく
+   ===================================================================== */
+$('board').addEventListener('pointerdown', ev => {
+  const c = ev.target.closest('.cell'); if(!c || !G) return;
+  ev.preventDefault();
+  const i = +c.dataset.i;
+  if(G.mode === 'practice'){ practiceTapCell(i); return; }
+  if(G.done) return;
+  G.sel = i; G.markCell = -1;
+  SND.tap();
+  paint();
+  if(G.puzzle[i]) say('この ます は さいしょ から きまって います。');
+  else say(usePics() ? 'どの え が はいるかな？' : 'すうじ を えらんで ください。');
+});
+
+function onPad(d){
+  if(!G || !G.cells) return;
+  if(G.mode === 'practice'){ practiceAnswer(d); return; }
+  if(G.done) return;
+  if(G.sel < 0){ say('さきに ます を えらんで ください。', 'ng'); SND.ng(); return; }
+  const i = G.sel;
+  if(G.puzzle[i]){ say('ここ は さいしょ から ある ' + (usePics() ? 'え' : 'すうじ') + ' です。', 'ng'); SND.ng(); return; }
+  if(G.memoOn){
+    pushUndo(i);
+    G.memo[i] ^= (1 << (d - 1));
+    G.cells[i] = 0;
+    SND.tap(); paint(); saveGame(); return;
+  }
+  place(i, d);
+}
+
+function pushUndo(i){ G.undo.push({ i, v:G.cells[i], m:G.memo[i] }); if(G.undo.length > 300) G.undo.shift(); }
+
+function place(i, d){
+  /* こども：まちがい は おかない（かわりに りゆう を おしえる）*/
+  if(G.mode === 'kids' && d !== G.solution[i]){
+    G.mistakes++;
+    const w = conflictWith(i, d);
+    if(w >= 0){
+      flash(w);
+      say('ざんねん！ ' + picOrNum(d) + ' は もう ' + whereWord(i, w) + ' に あるよ。', 'ng');
+    }else{
+      say('うーん、ちがう みたい。ほか の え を ためして みよう。', 'ng');
+    }
+    flash(i); SND.ng(); return;
+  }
+  pushUndo(i);
+  G.cells[i] = d;
+  G.memo[i] = 0;
+  for(const p of G.X.peers[i]) G.memo[p] &= ~(1 << (d - 1));
+  if(G.hintCells) G.hintCells.delete(i);
+  G.markCell = -1;
+  const e = cellEls()[i]; if(e){ e.classList.add('pop'); setTimeout(() => e.classList.remove('pop'), 360); }
+  paint();
+  const wrong = d !== G.solution[i];
+  if(wrong) G.mistakes++;
+  if(wrong && store.showBad){
+    SND.ng();
+    say('ここ は ちがう みたい です。「けす」で けせます。', 'ng');
+  }else{
+    SND.put();
+    say(usePics() ? 'いいね！' : 'はい。', 'good');
+  }
+  saveGame();
+  checkDone();
+}
+
+/* おなじ れつ／たて／おへや に すでに d が ある ばしょ */
+function conflictWith(i, d){
+  for(const p of G.X.peers[i]) if(G.cells[p] === d) return p;
+  return -1;
+}
+function whereWord(i, j){
+  const X = G.X;
+  if(X.rowOf[i] === X.rowOf[j]) return 'よこ の れつ';
+  if(X.colOf[i] === X.colOf[j]) return 'たて の れつ';
+  return 'おなじ おへや';
+}
+function picOrNum(d){ return usePics() ? picInline(d) : '<span class="num">' + d + '</span>'; }
+function flash(i){
+  const e = cellEls()[i]; if(!e) return;
+  e.classList.add('shake'); setTimeout(() => e.classList.remove('shake'), 420);
+}
+
+function undo(){
+  if(!G || G.done) return;
+  const u = G.undo.pop();
+  if(!u){ say('もどせる もの が ありません。'); SND.ng(); return; }
+  G.cells[u.i] = u.v; G.memo[u.i] = u.m; G.sel = u.i; G.markCell = -1;
+  SND.erase(); paint(); saveGame();
+  say('１つ もどしました。');
+}
+function erase(){
+  if(!G || G.done) return;
+  if(G.sel < 0){ say('けす ます を えらんで ください。', 'ng'); SND.ng(); return; }
+  if(G.puzzle[G.sel]){ say('さいしょ から ある ます は けせません。', 'ng'); SND.ng(); return; }
+  if(!G.cells[G.sel] && !G.memo[G.sel]){ say('この ます は もう から です。'); return; }
+  pushUndo(G.sel);
+  G.cells[G.sel] = 0; G.memo[G.sel] = 0;
+  SND.erase(); paint(); saveGame();
+  say('けしました。');
+}
+
+/* =====================================================================
+   12. ヒント／おしえて
+   ===================================================================== */
+function findEasyCell(){
+  /* いま の ばん で 「ここ しか ない」 と いえる ます を さがす */
+  const X = G.X, n = G.size, N = n * n;
+  const cand = new Int32Array(N);
+  for(let i = 0; i < N; i++) if(!G.cells[i]){
+    let m = X.ALL;
+    for(const p of X.peers[i]) if(G.cells[p]) m &= ~(1 << (G.cells[p] - 1));
+    cand[i] = m;
+  }
+  for(let i = 0; i < N; i++)
+    if(!G.cells[i] && bitCount(cand[i]) === 1 && lowBit(cand[i]) === G.solution[i])
+      return { i, d:G.solution[i], why:'only' };
+  for(const u of X.units) for(let d = 1; d <= n; d++){
+    const b = 1 << (d - 1);
+    let spot = -1, cnt = 0, have = false;
+    for(const i of u.cells){ if(G.cells[i] === d){ have = true; break; }
+                             if(!G.cells[i] && (cand[i] & b)){ cnt++; spot = i; } }
+    if(!have && cnt === 1 && G.solution[spot] === d) return { i:spot, d, why:u.k };
+  }
+  for(let i = 0; i < N; i++) if(!G.cells[i]) return { i, d:G.solution[i], why:'any' };
+  return null;
+}
+function hint(){
+  if(!G || G.done) return;
+  /* まちがった すうじ が あれば まず それ を おしえる */
+  for(let i = 0; i < G.cells.length; i++)
+    if(!G.puzzle[i] && G.cells[i] && G.cells[i] !== G.solution[i]){
+      G.sel = i; G.markCell = i; paint(); flash(i); SND.ng();
+      say('ここ の ' + picOrNum(G.cells[i]) + ' が ちがう みたい です。けして みて ください。', 'ng');
+      return;
+    }
+  const f = findEasyCell();
+  if(!f){ say('もう ぜんぶ うまって います。'); return; }
+  if(G.markCell === f.i && G.hintStage === 1){
+    /* ２かいめ：じっさい に いれる */
+    pushUndo(f.i);
+    G.cells[f.i] = f.d; G.memo[f.i] = 0;
+    G.hintCells = G.hintCells || new Set(); G.hintCells.add(f.i);
+    G.hints++; G.markCell = -1; G.hintStage = 0; G.sel = f.i;
+    SND.hint(); paint(); saveGame(); checkDone();
+    say('ここ は ' + picOrNum(f.d) + ' でした。', 'good');
+    return;
+  }
+  G.sel = f.i; G.markCell = f.i; G.hintStage = 1;
+  SND.hint(); paint();
+  say(explainCell(f) + '<span class="sub2">' +
+      (G.mode === 'adult' ? 'もう いちど 💡 で こたえ を いれます'
+                          : 'もう いちど 🔍 で こたえ が でます') + '</span>');
+}
+/* なぜ そこ に それ が はいる のか を、え つき で せつめい する */
+function explainCell(f){
+  const X = G.X, i = f.i;
+  if(f.why === 'only' || f.why === 'any'){
+    const near = [];
+    for(const p of X.peers[i]) if(G.cells[p] && near.indexOf(G.cells[p]) < 0) near.push(G.cells[p]);
+    near.sort((a, b) => a - b);
+    const others = near.filter(d => d !== f.d);
+    if(others.length >= G.size - 1){
+      /* 9×9 で 8こ も ならべる と よみにくい ので みじかく する */
+      if(G.size >= 9)
+        return 'ひかった ます は、たてよこ と おへや に ほか が ぜんぶ ある ので ' +
+               picOrNum(f.d) + ' に きまります。';
+      return 'ちかく に ' + others.map(picOrNum).join(' ') +
+             ' が いる ので、ひかった ます は ' + picOrNum(f.d) + ' です。';
+    }
+    return 'ひかった ます に はいる の は ' + picOrNum(f.d) + ' です。';
+  }
+  const w = f.why === 'row' ? 'この よこ の れつ' : f.why === 'col' ? 'この たて の れつ' : 'この おへや';
+  return w + ' で ' + picOrNum(f.d) + ' を おける の は ひかった ます だけ です。';
+}
+
+/* =====================================================================
+   13. できあがり
+   ===================================================================== */
+function checkDone(){
+  for(let i = 0; i < G.cells.length; i++) if(G.cells[i] !== G.solution[i]){
+    if(leftCount() === 0){
+      say('ぜんぶ うまりました が、どこか まちがって います。ヒント を おして みて ください。', 'ng');
+    }
+    return;
+  }
+  G.done = true; G.elapsed = elapsedMs();
+  delete store.save[G.lv.id];
+  const b = store.best[G.lv.id] || { n:0, t:0 };
+  b.n++;
+  if(G.mode === 'adult' && (!b.t || G.elapsed < b.t)) b.t = G.elapsed;
+  store.best[G.lv.id] = b; persist();
+  SND.clear(); confetti(); paint();
+  const stars = G.hints === 0 && G.mistakes === 0 ? 3 : (G.hints + G.mistakes <= 3 ? 2 : 1);
+  sheet(
+    '<h2>' + (G.mode === 'kids' ? 'できた〜！ すごい！' : 'かんせい！') + '</h2>' +
+    '<div class="stars">' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + '</div>' +
+    '<div class="hooray">' + happySvg() + '</div>' +
+    '<p>' + G.lv.name +
+      (G.mode === 'adult' && store.timer ? '<br>じかん ' + fmtTime(G.elapsed) : '') +
+      '<br>ヒント ' + G.hints + 'かい' +
+      (G.mode === 'kids' ? ' ／ これまで ' + b.n + 'かい クリア' : ' ／ これまで ' + b.n + 'かい クリア') +
+    '</p>',
+    [
+      { t:'つぎ の もんだい', pri:true, fn:() => { closeSheet(); newGame(G.lv, null); } },
+      { t:'メニュー に もどる', fn:() => { closeSheet(); toMenu(); } }
+    ]);
+}
+function happySvg(){
+  return '<svg viewBox="0 0 120 120">' +
+    '<circle cx="60" cy="60" r="46" fill="#ffd23f" stroke="#c99a12" stroke-width="5"/>' +
+    '<path d="M38 48c0-8 12-8 12 0" stroke="#5b3a12" stroke-width="6" fill="none" stroke-linecap="round"/>' +
+    '<path d="M70 48c0-8 12-8 12 0" stroke="#5b3a12" stroke-width="6" fill="none" stroke-linecap="round"/>' +
+    '<path d="M40 74c8 14 32 14 40 0" stroke="#5b3a12" stroke-width="7" fill="none" stroke-linecap="round"/>' +
+    '<circle cx="28" cy="76" r="9" fill="#ff9aa2" opacity=".8"/>' +
+    '<circle cx="92" cy="76" r="9" fill="#ff9aa2" opacity=".8"/></svg>';
+}
+
+/* =====================================================================
+   14. ほぞん
+   ===================================================================== */
+function saveGame(){
+  if(!G || G.mode === 'practice' || G.done || !G.cells) return;
+  store.save[G.lv.id] = {
+    p:Array.from(G.puzzle), s:Array.from(G.solution), c:Array.from(G.cells),
+    m:Array.from(G.memo), e:elapsedMs(), h:G.hints, left:leftCount()
+  };
+  persist();
+}
+function toMenu(){
+  saveGame();
+  if(G && G.mode === 'adult'){ buildAdult(); show('scrAdult'); }
+  else { buildKids(); show('scrKids'); }
+  G = null;
+}
+$('btnBack').onpointerdown = ev => { ev.preventDefault(); SND.tap(); toMenu(); };
+$('btnSet').onpointerdown  = ev => { ev.preventDefault(); SND.tap(); openSettings(); };
+/* =====================================================================
+   15. かさねる がめん（ダイアログ）
+   ===================================================================== */
+function sheet(html, buttons){
+  const s = $('sheet'); s.innerHTML = html;
+  (buttons || []).forEach(b => {
+    const btn = el('button', 'big' + (b.pri ? ' pri' : ''),
+      '<span class="txt">' + b.t + '</span>');
+    btn.onpointerdown = ev => { ev.preventDefault(); SND.tap(); b.fn(); };
+    s.append(btn);
+  });
+  $('veil').classList.add('on');
+}
+function closeSheet(){ $('veil').classList.remove('on'); }
+
+function openSettings(){
+  const kids = G ? G.mode !== 'adult' : document.body.classList.contains('kids');
+  const s = $('sheet'); s.innerHTML = '<h2>せってい</h2>';
+  const rows = [];
+  const addRow = (lab, sub, segEl) => {
+    const r = el('div', 'row', '<span class="lab">' + lab +
+      (sub ? '<small>' + sub + '</small>' : '') + '</span>');
+    r.append(segEl); rows.push(r);
+  };
+  const mkSeg = (opts, cur, fn) => {
+    const d = el('div', 'seg');
+    opts.forEach(o => {
+      const b = el('button', o.v === cur ? 'on' : '', o.t);
+      b.onpointerdown = ev => { ev.preventDefault(); SND.tap(); fn(o.v); persist(); openSettings(); };
+      d.append(b);
+    });
+    return d;
+  };
+  addRow('もじ の おおきさ', 'ぜんたい が おおきく なります',
+    mkSeg([{ t:'ふつう', v:1 }, { t:'大', v:1.18 }, { t:'特大', v:1.4 }], store.ui,
+          v => { store.ui = v; setTimeout(layout, 0); }));
+  addRow('おと', '',
+    mkSeg([{ t:'あり', v:true }, { t:'なし', v:false }], store.snd, v => store.snd = v));
+  if(kids){
+    addRow('ますの なかみ', 'え か すうじ か',
+      mkSeg([{ t:'え', v:'e' }, { t:'すうじ', v:'n' }], store.pics,
+            v => { store.pics = v; if(G && G.cells){ buildPad(); paint(); } }));
+  }else{
+    addRow('まちがい を おしえる', 'おなじ すうじ が ならぶ と あかく なります',
+      mkSeg([{ t:'する', v:true }, { t:'しない', v:false }], store.showBad,
+            v => { store.showBad = v; if(G && G.cells) paint(); }));
+    addRow('おなじ すうじ を ひからせる', 'えらんだ すうじ と おなじ ます に いろ が つきます',
+      mkSeg([{ t:'する', v:true }, { t:'しない', v:false }], store.showSame,
+            v => { store.showSame = v; if(G && G.cells) paint(); }));
+    addRow('じかん を はかる', 'いそがなくて だいじょうぶ です',
+      mkSeg([{ t:'する', v:true }, { t:'しない', v:false }], store.timer,
+            v => { store.timer = v; if(G && G.cells) updateStat(); }));
+  }
+  rows.forEach(r => s.append(r));
+  if(G && G.cells && G.mode !== 'practice'){
+    const r = el('button', 'big', '<span class="ico">🔄</span><span class="txt">この もんだい を さいしょ から' +
+      '<span class="sub">かいた もの を ぜんぶ けします</span></span>');
+    r.onpointerdown = ev => { ev.preventDefault(); SND.tap(); confirmReset(); };
+    s.append(r);
+  }
+  const c = el('button', 'big pri', '<span class="txt">とじる</span>');
+  c.onpointerdown = ev => { ev.preventDefault(); SND.tap(); closeSheet(); layout(); };
+  s.append(c);
+  $('veil').classList.add('on');
+}
+function confirmReset(){
+  sheet('<h2>さいしょ から やりなおしますか？</h2><p>じぶん で かいた すうじ は ぜんぶ きえます。</p>', [
+    { t:'はい、けします', pri:true, fn:() => {
+        G.cells = G.puzzle.slice(); G.memo = new Int32Array(G.size * G.size);
+        G.undo = []; G.sel = -1; G.markCell = -1; G.hints = 0; G.mistakes = 0;
+        G.t0 = Date.now(); G.elapsed = 0; G.hintCells = new Set();
+        paint(); saveGame(); closeSheet(); say('さいしょ から どうぞ。');
+      } },
+    { t:'やめる', fn:() => { closeSheet(); } }
+  ]);
+}
+function askResume(lv){
+  const sv = store.save[lv.id];
+  sheet('<h2>' + lv.name + '</h2><p>とちゅう の もんだい が のこって います。<br>のこり ' + sv.left + 'ます です。</p>', [
+    { t:'つづき から', pri:true, fn:() => { closeSheet(); newGame(lv, sv); } },
+    { t:'あたらしい もんだい', fn:() => { closeSheet(); delete store.save[lv.id]; persist(); newGame(lv, null); } },
+    { t:'やめる', fn:() => { closeSheet(); } }
+  ]);
+}
+
+/* =====================================================================
+   16. れんしゅう モード（ルール を １つずつ おしえる）
+   ===================================================================== */
+const PRACTICE = [
+  { name:'よこ の れつ', kind:'row', q:3,
+    tip:'よこ に ならんだ ４ます には、４しゅるい の え が １つずつ はいります。' },
+  { name:'たて の れつ', kind:'col', q:3,
+    tip:'たて に ならんだ ４ます も おなじ。おなじ え は ２つ ならびません。' },
+  { name:'４つの おへや', kind:'box', q:3,
+    tip:'ふとい せん で かこまれた ４ます（おへや）にも、４しゅるい が １つずつ。' },
+  { name:'ぜんぶ いっしょに', kind:'grid', holes:2, q:2,
+    tip:'たて・よこ・おへや、ぜんぶ の やくそく を まもります。ひかる ます を うめてね。' },
+  { name:'ひとり で とく', kind:'grid', holes:5, q:1,
+    tip:'さいご は じぶん の ちから で！ こまったら ❓ を おしてね。' }
+];
+
+function startPractice(step){
+  G = { mode:'practice', step:step, qi:0, size:4, X:CTX[4], done:false,
+        undo:[], hints:0, mistakes:0, lv:{ id:'practice', name:'れんしゅう' } };
+  document.body.className = bodyCls('kids');
+  show('scrGame');
+  $('steps').hidden = false;
+  buildTools();
+  practiceQuestion();
+}
+function practiceQuestion(){
+  const L = PRACTICE[G.step];
+  const st = $('steps'); st.innerHTML = '';
+  PRACTICE.forEach((_, k) => {
+    const i = el('i', (k < G.step ? 'on' : '') + (k === G.step ? ' now on' : ''));
+    st.append(i);
+  });
+  $('gTitle').textContent = 'れんしゅう ' + (G.step + 1) + '／' + PRACTICE.length +
+                            '・' + L.name + '（' + (G.qi + 1) + '/' + L.q + '）';
+  G.kind = L.kind;
+  G.free = L.kind === 'grid' && L.holes > 2;
+
+  if(L.kind === 'grid'){
+    const r = makeHoles(4, L.holes);
+    G.cols = 4; G.rows = 4; G.bw = 2; G.bh = 2;
+    G.puzzle = r.puzzle; G.solution = r.solution; G.cells = r.puzzle.slice();
+  }else{
+    const perm = shuffle([1, 2, 3, 4]);
+    const hide = rnd(4);
+    G.solution = Int8Array.from(perm);
+    G.cells = Int8Array.from(perm); G.cells[hide] = 0;
+    G.puzzle = G.cells.slice();
+    if(L.kind === 'row'){ G.cols = 4; G.rows = 1; G.bw = 4; G.bh = 1; }
+    else if(L.kind === 'col'){ G.cols = 1; G.rows = 4; G.bw = 1; G.bh = 4; }
+    else { G.cols = 2; G.rows = 2; G.bw = 2; G.bh = 2; }
+  }
+  G.memo = new Int32Array(G.cells.length);
+  G.sel = -1; G.markCell = -1; G.undo = [];
+  buildBoard(); buildPad();
+  practicePickTarget();
+  paint();
+  say('<b>' + L.tip + '</b>');
+}
+function practicePickTarget(){
+  if(G.free){ G.target = -1; G.markCell = -1;
+              const first = [...G.cells].findIndex(v => !v);
+              if(G.sel < 0 || G.cells[G.sel]) G.sel = first;
+              return; }
+  /* うめる ます を １つ ずつ しめす（かならず 「ここ しか ない」 ます）*/
+  let best = -1;
+  for(let i = 0; i < G.cells.length; i++){
+    if(G.cells[i]) continue;
+    if(G.kind !== 'grid'){ best = i; break; }
+    let m = 15;
+    for(const p of G.X.peers[i]) if(G.cells[p]) m &= ~(1 << (G.cells[p] - 1));
+    if(bitCount(m) === 1){ best = i; break; }
+    if(best < 0) best = i;
+  }
+  G.target = best; G.markCell = best; G.sel = best;
+}
+function practiceTapCell(i){
+  if(G.cells[i]){ flash(i); say('ここ は もう うまって います。'); SND.tap(); return; }
+  if(G.free){ G.sel = i; SND.tap(); paint(); say('この ます に なに が はいるかな？'); return; }
+  if(i !== G.target){
+    say('ひかって いる ます を うめよう！');
+    SND.tap(); flash(i); paint(); return;
+  }
+  SND.tap();
+}
+function practiceAnswer(d){
+  const i = G.free ? G.sel : G.target;
+  if(i == null || i < 0 || G.cells[i]){ say('ます を えらんで ね。'); return; }
+  if(d !== G.solution[i]){
+    G.mistakes++;
+    const w = practiceConflict(i, d);
+    if(w >= 0){
+      flash(w); flash(i);
+      say('ざんねん！ ' + picInline(d) + ' は もう ' + practiceWhere(i, w) + ' に あるよ。', 'ng');
+    }else{
+      flash(i);
+      say('うーん、ちがう みたい。もういちど よく みて みよう。', 'ng');
+    }
+    SND.ng(); return;
+  }
+  G.cells[i] = d;
+  const e = cellEls()[i]; if(e){ e.classList.add('pop'); setTimeout(() => e.classList.remove('pop'), 360); }
+  G.markCell = -1; SND.put(); paint();
+  say('せいかい！ ' + picInline(d) + ' で ぴったり だね。', 'good');
+  if(leftCount() > 0){
+    setTimeout(() => { practicePickTarget(); paint();
+      if(!G.free) say('つぎ は ひかって いる ます だよ。'); }, 700);
+    return;
+  }
+  /* この もんだい は おわり */
+  setTimeout(practiceCleared, 800);
+}
+function practiceConflict(i, d){
+  if(G.kind === 'grid'){ for(const p of G.X.peers[i]) if(G.cells[p] === d) return p; return -1; }
+  for(let j = 0; j < G.cells.length; j++) if(j !== i && G.cells[j] === d) return j;
+  return -1;
+}
+function practiceWhere(i, j){
+  if(G.kind === 'row') return 'この よこ の れつ';
+  if(G.kind === 'col') return 'この たて の れつ';
+  if(G.kind === 'box') return 'この おへや';
+  return 'おなじ ' + whereWord(i, j).replace('おなじ ', '');
+}
+function practiceWhy(){
+  const i = G.free ? G.sel : G.target;
+  if(i == null || i < 0 || G.cells[i]){ say('ます を えらんで から きいて ね。'); return; }
+  SND.hint();
+  if(G.kind === 'grid'){
+    let m = 15;
+    const near = [];
+    for(const p of G.X.peers[i]) if(G.cells[p]){
+      m &= ~(1 << (G.cells[p] - 1));
+      if(near.indexOf(G.cells[p]) < 0) near.push(G.cells[p]);
+    }
+    near.sort((a, b) => a - b);
+    if(bitCount(m) === 1)
+      say('この ます の たて・よこ・おへや に ' + near.map(picInline).join(' ') +
+          ' が いる ね。だから のこり は ' + picInline(lowBit(m)) + ' だけ！');
+    else
+      say('ちかく に ' + near.map(picInline).join(' ') + ' が いる よ。よく みて みよう。');
+  }else{
+    const have = [];
+    for(const v of G.cells) if(v) have.push(v);
+    have.sort((a, b) => a - b);
+    const miss = [1, 2, 3, 4].filter(d => have.indexOf(d) < 0);
+    say('ここ に は ' + have.map(picInline).join(' ') + ' が あるね。<br>' +
+        'ない のは ' + miss.map(picInline).join(' ') + ' だよ。');
+  }
+  G.markCell = i; paint();
+}
+function practiceNewQ(){ SND.tap(); practiceQuestion(); }
+function practiceCleared(){
+  const L = PRACTICE[G.step];
+  G.qi++;
+  if(G.qi < L.q){ SND.step(); practiceQuestion(); return; }
+  /* ステップ クリア */
+  SND.clear(); confetti();
+  if(store.practice < G.step + 1){ store.practice = G.step + 1; persist(); }
+  const last = G.step + 1 >= PRACTICE.length;
+  const btns = [];
+  if(!last) btns.push({ t:'つぎ の れんしゅう へ', pri:true,
+    fn:() => { closeSheet(); G.step++; G.qi = 0; practiceQuestion(); } });
+  btns.push({ t:'もう いちど', fn:() => { closeSheet(); G.qi = 0; practiceQuestion(); } });
+  btns.push({ t: last ? '４×４ で あそぶ' : 'メニュー に もどる',
+    fn:() => { closeSheet(); if(last){ newGame(KIDS[0], null); } else { buildKids(); show('scrKids'); G = null; } } });
+  sheet('<h2>' + (last ? 'ぜんぶ クリア！ おめでとう！' : L.name + ' クリア！') + '</h2>' +
+        '<div class="hooray">' + happySvg() + '</div>' +
+        '<p>' + (last ? 'ルール は ばっちり。こんど は ほんもの の ナンプレ に ちょうせん しよう！'
+                      : 'つぎ の やくそく を おぼえよう。') + '</p>', btns);
+}
+
+/* =====================================================================
+   17. かみふぶき
+   ===================================================================== */
+function confetti(){
+  const cv = $('confetti'), ctx = cv.getContext('2d');
+  const dpr = Math.min(2, devicePixelRatio || 1);
+  cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+  cv.style.width = innerWidth + 'px'; cv.style.height = innerHeight + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  cv.classList.add('on');
+  const cols = ['#e5484d', '#f5a524', '#2f7fe0', '#2fa84f', '#e05fa0', '#8b5cf6'];
+  const ps = [];
+  for(let i = 0; i < 90; i++) ps.push({
+    x:Math.random() * innerWidth, y:-20 - Math.random() * innerHeight * .6,
+    vx:(Math.random() - .5) * 1.6, vy:2 + Math.random() * 3,
+    w:6 + Math.random() * 7, h:9 + Math.random() * 9,
+    a:Math.random() * 6.3, va:(Math.random() - .5) * .3,
+    c:cols[rnd(cols.length)]
+  });
+  const t0 = performance.now();
+  (function tick(t){
+    const e = t - t0;
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for(const p of ps){
+      p.x += p.vx; p.y += p.vy; p.a += p.va;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a);
+      ctx.fillStyle = p.c; ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h); ctx.restore();
+    }
+    if(e < 3200) requestAnimationFrame(tick);
+    else { ctx.clearRect(0, 0, innerWidth, innerHeight); cv.classList.remove('on'); }
+  })(t0);
+}
+
+/* =====================================================================
+   18. はじめ の しょり
+   ===================================================================== */
+document.addEventListener('touchmove', e => { if(!e.target.closest('.menuList,.sheet')) e.preventDefault(); },
+                          { passive:false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+addEventListener('pointerdown', () => actx(), { once:true });
+document.querySelectorAll('[data-back]').forEach(b =>
+  b.onpointerdown = ev => { ev.preventDefault(); SND.tap(); show('scrHome'); });
+
+buildHome(); buildKids(); buildAdult();
+show('scrHome');
+layout();
+
+</script>
+</body>
+</html>
