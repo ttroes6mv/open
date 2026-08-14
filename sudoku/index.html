@@ -424,10 +424,13 @@ const shuffle = a => { for(let i = a.length - 1; i > 0; i--){ const j = rnd(i + 
   const t = a[i]; a[i] = a[j]; a[j] = t; } return a; };
 
 const KEY = 'sudoku.v1';
-let store = { snd:true, ui:1, pics:'e', showBad:true, showSame:true, timer:false,
+let store = { snd:true, ui:1, pics:'n', showBad:true, showSame:true, timer:false,
               practice:0, best:{}, save:{} };
 try{ const s = JSON.parse(localStorage.getItem(KEY) || '{}');
      Object.assign(store, s); }catch(e){}
+/* v2：こども モード の きほん を 「え」から 「すうじ」に かえた。
+   まえ に あそんだ 人 も いちど すうじ に そろえる（そのあと は せってい で じゆう）。*/
+if(!store.v2){ store.pics = 'n'; store.v2 = 1; persist(); }
 function persist(){ try{ localStorage.setItem(KEY, JSON.stringify(store)); }catch(e){} }
 
 /* =====================================================================
@@ -473,6 +476,10 @@ const PICS = [
   { name:'おはな',   col:'#e05fa0', d:'<g fill="#e05fa0" stroke="#b23d7c" stroke-width="3"><circle cx="50" cy="24" r="17"/><circle cx="76" cy="43" r="17"/><circle cx="66" cy="74" r="17"/><circle cx="34" cy="74" r="17"/><circle cx="24" cy="43" r="17"/></g><circle cx="50" cy="52" r="15" fill="#ffd23f" stroke="#c99a12" stroke-width="3"/>' },
   { name:'ぶどう',   col:'#8b5cf6', d:'<path d="M50 22c0-10 8-14 8-14" stroke="#5b3a12" stroke-width="6" fill="none" stroke-linecap="round"/><path d="M58 12c10-6 18-2 18-2s-6 10-16 8z" fill="#3aa64a"/><g fill="#8b5cf6" stroke="#6636d6" stroke-width="3"><circle cx="50" cy="34" r="13"/><circle cx="34" cy="52" r="13"/><circle cx="66" cy="52" r="13"/><circle cx="50" cy="58" r="13"/><circle cx="42" cy="76" r="13"/><circle cx="58" cy="76" r="13"/></g>' }
 ];
+/* こども モード で すうじ を つかう とき の いろ。
+   え と おなじ じゅんばん。しろ の うえ で よめる こさ に して ある。 */
+const NUMCOL = [null, '#c62828', '#a35a00', '#1565c0', '#2e7d32', '#ad1457', '#6a3ab2',
+                '#00695c', '#4e342e', '#37474f'];
 function picSvg(d, cls){
   const p = PICS[d]; if(!p) return '';
   return '<svg viewBox="0 0 100 100"' + (cls ? ' class="' + cls + '"' : '') +
@@ -798,7 +805,7 @@ function buildHome(){
   const L = $('homeList'); L.innerHTML = '';
   const b1 = el('button', 'big kidsCard wide',
     '<span class="ico">🧒</span><span class="txt">こども モード' +
-    '<span class="sub">え を つかった 4×4・6×6。ルール を おしえる れんしゅう つき</span></span>');
+    '<span class="sub">4×4・6×6 の やさしい ナンプレ。ルール を おしえる れんしゅう つき</span></span>');
   b1.onclick = () => { SND.tap(); show('scrKids'); };
   const b2 = el('button', 'big adultCard wide',
     '<span class="ico">🔢</span><span class="txt">おとな モード' +
@@ -824,6 +831,18 @@ function buildKids(){
   p.onclick = () => { SND.tap(); startPractice(done ? 0 : store.practice); };
   L.append(p);
   KIDS.forEach(lv => L.append(levelButton(lv)));
+  /* すうじ ⇔ え の きりかえ。せってい を ひらかなくても ここ で かえられる。
+     すうじ が よめる 子 は そのまま すうじ で どうぞ。 */
+  const num = store.pics !== 'e';
+  const t = el('button', 'mini wide',
+    'ますの なかみ： <b>' + (num ? 'すうじ' : 'え') + '</b>　→ おすと ' + (num ? 'え' : 'すうじ') + ' に かわります');
+  t.onclick = () => { SND.tap(); store.pics = num ? 'e' : 'n'; persist(); buildKids(); updateKidsLead(); };
+  L.append(t);
+  updateKidsLead();
+}
+function updateKidsLead(){
+  const e = document.querySelector('#scrKids h1 .small');
+  if(e) e.textContent = (store.pics === 'e' ? 'え' : 'すうじ') + ' を ならべて あそぼう';
 }
 
 /* --- おとな メニュー --- */
@@ -975,7 +994,7 @@ function newGame(lv, saved){
       G.memo = new Int32Array(spec.size * spec.size);
       G.t0 = Date.now(); G.elapsed = 0;
       paint();
-      say(kids ? 'ます を おして、え を えらんで ね。'
+      say(kids ? 'ます を おして、' + mWord() + ' を えらんで ね。'
                : 'ます を えらんで、すうじ を おしてください。');
       saveGame();
     }, 30);
@@ -1040,6 +1059,7 @@ function paint(){
     const vd = e.firstElementChild, md = e.lastElementChild;
     if(v){
       vd.innerHTML = usePics() ? picSvg(v) : String(v);
+      vd.style.color = (G.mode !== 'adult' && !usePics()) ? NUMCOL[v] : '';
       md.innerHTML = '';
     }else{
       vd.innerHTML = '';
@@ -1052,6 +1072,8 @@ function paint(){
   updatePadCounts();
 }
 function usePics(){ return G.mode !== 'adult' && store.pics === 'e'; }
+/* こども モード の 文中 で つかう ことば（え／すうじ）*/
+function mWord(){ return usePics() ? 'え' : 'すうじ'; }
 function memoHtml(m){
   if(!m) return '';
   let s = '';
@@ -1088,6 +1110,7 @@ function buildPad(){
   p.style.gridTemplateRows    = 'repeat(' + Math.ceil(n / cols) + ',1fr)';
   for(let d = 1; d <= n; d++){
     const b = el('button', '', usePics() ? picSvg(d) : String(d));
+    if(G.mode !== 'adult' && !usePics()) b.style.color = NUMCOL[d];
     b.dataset.d = d;
     b.setAttribute('aria-label', usePics() ? PICS[d].name : String(d));
     if(G.mode === 'adult') b.append(el('span', 'cnt'));
@@ -1212,7 +1235,11 @@ function whereWord(i, j){
   if(X.colOf[i] === X.colOf[j]) return 'たて の れつ';
   return 'おなじ おへや';
 }
-function picOrNum(d){ return usePics() ? picInline(d) : '<span class="num">' + d + '</span>'; }
+function picOrNum(d){
+  if(usePics()) return picInline(d);
+  const c = (G && G.mode !== 'adult') ? ' style="color:' + NUMCOL[d] + '"' : '';
+  return '<span class="num"' + c + '>' + d + '</span>';
+}
 function flash(i){
   const e = cellEls()[i]; if(!e) return;
   e.classList.add('shake'); setTimeout(() => e.classList.remove('shake'), 420);
@@ -1462,9 +1489,9 @@ function askResume(lv){
    ===================================================================== */
 const PRACTICE = [
   { name:'よこ の れつ', kind:'row', q:3,
-    tip:'よこ に ならんだ ４ます には、４しゅるい の え が １つずつ はいります。' },
+    tip:'よこ に ならんだ ４ます には、４しゅるい の %M% が １つずつ はいります。' },
   { name:'たて の れつ', kind:'col', q:3,
-    tip:'たて に ならんだ ４ます も おなじ。おなじ え は ２つ ならびません。' },
+    tip:'たて に ならんだ ４ます も おなじ。おなじ %M% は ２つ ならびません。' },
   { name:'４つの おへや', kind:'box', q:3,
     tip:'ふとい せん で かこまれた ４ます（おへや）にも、４しゅるい が １つずつ。' },
   { name:'ぜんぶ いっしょに', kind:'grid', holes:2, q:2,
@@ -1513,7 +1540,7 @@ function practiceQuestion(){
   buildBoard(); buildPad();
   practicePickTarget();
   paint();
-  say('<b>' + L.tip + '</b>');
+  say('<b>' + L.tip.replace('%M%', mWord()) + '</b>');
 }
 function practicePickTarget(){
   if(G.free){ G.target = -1; G.markCell = -1;
@@ -1549,7 +1576,7 @@ function practiceAnswer(d){
     const w = practiceConflict(i, d);
     if(w >= 0){
       flash(w); flash(i);
-      say('ざんねん！ ' + picInline(d) + ' は もう ' + practiceWhere(i, w) + ' に あるよ。', 'ng');
+      say('ざんねん！ ' + picOrNum(d) + ' は もう ' + practiceWhere(i, w) + ' に あるよ。', 'ng');
     }else{
       flash(i);
       say('うーん、ちがう みたい。もういちど よく みて みよう。', 'ng');
@@ -1559,7 +1586,7 @@ function practiceAnswer(d){
   G.cells[i] = d;
   const e = cellEls()[i]; if(e){ e.classList.add('pop'); setTimeout(() => e.classList.remove('pop'), 360); }
   G.markCell = -1; SND.put(); paint();
-  say('せいかい！ ' + picInline(d) + ' で ぴったり だね。', 'good');
+  say('せいかい！ ' + picOrNum(d) + ' で ぴったり だね。', 'good');
   if(leftCount() > 0){
     setTimeout(() => { practicePickTarget(); paint();
       if(!G.free) say('つぎ は ひかって いる ます だよ。'); }, 700);
@@ -1592,17 +1619,17 @@ function practiceWhy(){
     }
     near.sort((a, b) => a - b);
     if(bitCount(m) === 1)
-      say('この ます の たて・よこ・おへや に ' + near.map(picInline).join(' ') +
-          ' が いる ね。だから のこり は ' + picInline(lowBit(m)) + ' だけ！');
+      say('この ます の たて・よこ・おへや に ' + near.map(picOrNum).join(' ') +
+          ' が いる ね。だから のこり は ' + picOrNum(lowBit(m)) + ' だけ！');
     else
-      say('ちかく に ' + near.map(picInline).join(' ') + ' が いる よ。よく みて みよう。');
+      say('ちかく に ' + near.map(picOrNum).join(' ') + ' が いる よ。よく みて みよう。');
   }else{
     const have = [];
     for(const v of G.cells) if(v) have.push(v);
     have.sort((a, b) => a - b);
     const miss = [1, 2, 3, 4].filter(d => have.indexOf(d) < 0);
-    say('ここ に は ' + have.map(picInline).join(' ') + ' が あるね。<br>' +
-        'ない のは ' + miss.map(picInline).join(' ') + ' だよ。');
+    say('ここ に は ' + have.map(picOrNum).join(' ') + ' が あるね。<br>' +
+        'ない のは ' + miss.map(picOrNum).join(' ') + ' だよ。');
   }
   G.markCell = i; paint();
 }
