@@ -34,6 +34,7 @@
     --stop:#e5484d; --stop-d:#a82f34;
     --word:#8a5cf5; --word-d:#6236cf;
     --loop:#f2b705;
+    --quiz:#0e9f9a; --quiz-d:#0a716d;
     --font:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","BIZ UDPGothic","Yu Gothic UI","Meiryo",sans-serif;
     color-scheme:light;
   }
@@ -46,6 +47,8 @@
     color:var(--ink);
     font-family:var(--font);
     font-weight:500;
+    word-break:keep-all;      /* わかちがき の すきま で だけ おりかえす */
+    overflow-wrap:anywhere;
     overflow:auto;          /* ふつう は ぴったり。はいりきらない ときだけ スクロール */
     -webkit-user-select:none; user-select:none;
     -webkit-touch-callout:none;
@@ -92,6 +95,9 @@
   .seg button{min-height:36px; padding:4px 10px; border-radius:9px; font-size:14px; font-weight:700;}
   .seg button[aria-pressed="true"]{background:var(--navy); color:#fff;}
 
+  .btn.qz{background:var(--quiz); color:#fff; box-shadow:0 3px 0 var(--quiz-d);}
+  .btn.qz[aria-pressed="true"]{box-shadow:0 3px 0 var(--quiz-d), 0 0 0 3px #fff, 0 0 0 5px var(--quiz);}
+
   /* ===== え（キャンバス）===== */
   #stage{
     grid-area:stage;
@@ -125,6 +131,55 @@
   }
   #pos{right:10px;}
   #scale{left:10px;}
+
+  /* ===== もんだい モード ===== */
+  #app.quiz{
+    grid-template-rows:auto auto minmax(0,1fr) auto;
+    grid-template-areas:"top top" "mis side" "stage side" "pal pal";
+  }
+  #mission{
+    grid-area:mis;
+    display:flex; align-items:center; flex-wrap:wrap; gap:8px 12px;
+    padding:8px 10px 8px 8px;
+    background:#fff; border-radius:14px;
+    box-shadow:0 3px 0 var(--shadow);
+  }
+  .mnum{flex:none; min-width:66px; padding:4px 10px 5px; border-radius:10px; background:var(--quiz); color:#fff; text-align:center; font-size:12px; font-weight:900; line-height:1.15;}
+  .mnum b{display:block; font-size:24px; font-variant-numeric:tabular-nums;}
+  .mtxt{flex:1 1 220px; min-width:0;}
+  .mttl{font-size:18px; font-weight:900; color:var(--navy); text-wrap:balance;}
+  .mask{font-size:14px; font-weight:700; color:var(--muted); line-height:1.45;}
+  .mcount{font-size:13px; font-weight:700; color:var(--muted); line-height:1.5; font-variant-numeric:tabular-nums;}
+  .mcount b{font-size:16px; color:var(--navy);}
+  .mbtns{display:flex; gap:6px; flex:none;}
+  .mbtns .btn{min-height:38px;}
+  .stars{letter-spacing:1px; font-weight:900;}
+  .stars .on{color:#f5b300;}
+  .stars .off{color:#d3d9e6;}
+  #cele{position:absolute; inset:0; z-index:5; display:grid; place-items:center; padding:16px; background:rgba(255,255,255,.35);}
+  .cbox{
+    width:min(100%, 400px);
+    padding:16px 20px 18px;
+    background:#fff; border-radius:20px;
+    text-align:center;
+    box-shadow:0 0 0 4px var(--quiz), 0 16px 40px rgba(20,40,80,.25);
+    animation:pop .35s ease-out;
+  }
+  .cstars{font-size:54px; line-height:1; letter-spacing:4px;}
+  .cstars span{display:inline-block; color:#dfe4ee; animation:pop .45s ease-out backwards;}
+  .cstars span.on{color:#ffc21a; text-shadow:0 3px 0 #d99a00;}
+  .cstars span:nth-child(2){animation-delay:.15s;}
+  .cstars span:nth-child(3){animation-delay:.3s;}
+  .cttl{margin:6px 0 2px; font-size:30px; font-weight:900; color:var(--quiz);}
+  .cmsg{margin:0 0 14px; font-size:15px; font-weight:700; color:var(--muted); line-height:1.55;}
+  .crow{display:flex; gap:8px; justify-content:center; flex-wrap:wrap;}
+  @keyframes pop{from{transform:scale(.3); opacity:0;} 70%{transform:scale(1.12); opacity:1;} to{transform:scale(1);}}
+  .chap{margin:16px 0 8px; font-size:16px; font-weight:900; color:var(--quiz-d);}
+  .chap:first-child{margin-top:0;}
+  .qtop{display:flex; align-items:center; justify-content:space-between; gap:6px;}
+  .qn{min-width:28px; padding:1px 8px; border-radius:999px; background:var(--quiz); color:#fff; font-size:13px; font-variant-numeric:tabular-nums;}
+  .card.next{box-shadow:0 0 0 3px var(--quiz), 0 3px 0 var(--soft-2);}
+  .card.next .sub{color:var(--quiz-d);}
 
   /* ===== めいれい（プログラム）===== */
   #side{grid-area:side; display:flex; flex-direction:column; gap:10px; min-height:0; min-width:0;}
@@ -327,14 +382,27 @@
     #side{flex-direction:row; height:clamp(210px, 26vh, 320px);}
     #code{flex:1 1 58%; min-width:0;}
     #picker{flex:1 1 42%; min-width:0; overflow:auto;}
+    .cmd{min-height:46px;}
+    #app.quiz #side{height:clamp(200px, 23vh, 300px);}
+    #app.quiz{
+      grid-template-rows:auto auto minmax(240px,1fr) auto auto;
+      grid-template-areas:"top" "mis" "stage" "side" "pal";
+    }
   }
   /* スマホ：ページ ごと スクロール */
-  @media (max-width:1180px){
+  @media (max-width:1320px){
     .brand small, .seg .lbl, #txt .t{display:none;}
     .btn{padding:6px 9px; font-size:14px;}
   }
+  @media (max-width:1100px){
+    #grid .t{display:none;}
+    .brand h1{font-size:20px;}
+    .btn{padding:6px 8px; gap:4px;}
+    .seg button{padding:4px 8px;}
+  }
   @media (max-width:640px){
     #app{height:auto; min-height:100%; grid-template-rows:auto auto auto auto;}
+    #app.quiz{grid-template-rows:auto auto auto auto auto;}
     #stage{aspect-ratio:1/1; max-height:75vh;}
     #side{flex-direction:column; height:auto;}
     #code{flex:none; height:320px;}
@@ -344,10 +412,12 @@
   }
   @media (orientation:landscape) and (max-height:560px){
     #app{height:auto; grid-template-rows:auto 80vh auto;}
+    #app.quiz{grid-template-rows:auto auto 80vh auto;}
   }
   @media (prefers-reduced-motion:reduce){
     .cur .bar{animation:none;}
     #say{transition:none;}
+    .cbox, .cstars span{animation:none;}
   }
 </style>
 </head>
@@ -379,6 +449,7 @@
       </div>
     </div>
     <div class="tb">
+      <button type="button" class="btn qz" id="quizBtn" aria-pressed="false"></button>
       <button type="button" class="btn" id="undo"></button>
       <button type="button" class="btn" id="new"></button>
       <button type="button" class="btn" id="ex"></button>
@@ -388,6 +459,16 @@
     </div>
   </header>
 
+  <div id="mission" hidden>
+    <div class="mnum">もんだい<b id="mNum">1</b></div>
+    <div class="mtxt"><div class="mttl" id="mTtl"></div><div class="mask" id="mAsk"></div><div class="mcount" id="mCount"></div></div>
+    <div class="mbtns">
+      <button type="button" class="btn" id="mHint">ヒント</button>
+      <button type="button" class="btn" id="mPick">えらぶ</button>
+      <button type="button" class="btn" id="mQuit">おわる</button>
+    </div>
+  </div>
+
   <section id="stage" aria-label="かめさんの え">
     <canvas id="cvBg"></canvas>
     <canvas id="cvDraw"></canvas>
@@ -395,6 +476,17 @@
     <div id="say" role="status" aria-live="polite"></div>
     <div class="chipinfo" id="scale">1ます ＝ 50ぽ</div>
     <div class="chipinfo" id="pos"></div>
+    <div id="cele" hidden>
+      <div class="cbox" role="status">
+        <div class="cstars" id="celeStars"></div>
+        <div class="cttl" id="celeTtl">できた！</div>
+        <p class="cmsg" id="celeMsg"></p>
+        <div class="crow">
+          <button type="button" class="btn go" id="celeNext">つぎの もんだい</button>
+          <button type="button" class="btn" id="celeStay">つづける</button>
+        </div>
+      </div>
+    </div>
   </section>
 
   <aside id="side">
@@ -406,6 +498,15 @@
   </aside>
 
   <nav id="pal" aria-label="めいれいの ボタン"></nav>
+</div>
+
+<!-- もんだい を えらぶ -->
+<div class="modal" id="mQuiz" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="mQuizT">
+    <header><h2 id="mQuizT">もんだい</h2><button type="button" class="btn" data-close>とじる</button></header>
+    <p class="lead">🍎を あつめたり、うすい きいろの せんを なぞったり しよう。めいれいが すくないほど ★が ふえるよ。</p>
+    <div id="quizList"></div>
+  </div>
 </div>
 
 <!-- おてほん -->
@@ -590,6 +691,7 @@ const ICON = {
   grid: S('<rect x="3.5" y="3.5" width="17" height="17" rx="2"/><path d="M9.2 3.5v17M14.8 3.5v17M3.5 9.2h17M3.5 14.8h17"/>'),
   kb: S('<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6.5 10h.01M10 10h.01M14 10h.01M17.5 10h.01M7.5 14h9"/>'),
   check: S('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+  flag: S('<path d="M5 21V4"/><path d="M5 4.5h12l-2.5 4 2.5 4H5"/>'),
   pencil: S('<path d="M15 4l5 5-10.5 10.5H4.5v-5z"/>'),
 };
 
@@ -902,9 +1004,9 @@ function ac(){
   if (AC && AC.state === 'suspended') AC.resume().catch(() => {});
   return AC;
 }
-function playNote(name){
+function playNote(name, delay = 0){
   const a = ac(); if (!a) return;
-  const f = NOTE_F[name] || 523.25, t = a.currentTime + 0.01;
+  const f = NOTE_F[name] || 523.25, t = a.currentTime + 0.01 + delay;
   const g = a.createGain(), o = a.createOscillator(), o2 = a.createOscillator(), g2 = a.createGain();
   o.type = 'triangle'; o.frequency.value = f;
   o2.type = 'sine'; o2.frequency.value = f * 2; g2.gain.value = 0.25;
@@ -945,7 +1047,7 @@ function* runNode(n, T, hl, depth, anim){
       if (!floodFill(T)) yield {warn:'かめさんが えの そとに いるから ぬれないよ'};
       if (anim) yield FRAME;
       break;
-    case 'clean': clearPaint(T.P); if (anim) yield FRAME; break;
+    case 'clean': clearPaint(T.P); if (T.segs) T.segs.length = 0; if (anim) yield FRAME; break;
     case 'stamp': stamp(T); if (anim) yield FRAME; break;
     case 'shape': T.shape = n.v; break;
     case 'ht': T.visible = false; break;
@@ -984,14 +1086,16 @@ function* move(T, d, anim){
       done = Math.min(L, done + SPEEDS[speed].move);
       if (done >= L) break;
       T.x = x0 + (x1 - x0) * done / L; T.y = y0 + (y1 - y0) * done / L;
+      if (T.quiz) visit(T, x0, y0, T.x, T.y, true);
       T.partial = css ? {x0, y0, css} : null;
       yield FRAME;
     }
     T.partial = null;
   }
   T.x = x1; T.y = y1;
+  if (T.quiz) visit(T, x0, y0, x1, y1, anim);
   grow(T, x1, y1, T.width / 2);
-  if (css) drawSeg(T, x0, y0, x1, y1, css);
+  if (css){ drawSeg(T, x0, y0, x1, y1, css); if (T.segs) T.segs.push([x0, y0, x1, y1]); }
   if (anim) yield FRAME;
 }
 function* turn(T, a, anim){
@@ -1032,23 +1136,33 @@ let synced = false;       // え が プログラム の さいご まで かけ
 function resetStage(){
   clearPaint(drawP);
   T = newTurtle(drawP, prog.words);
+  if (quizActive()){
+    // もんだい：スタート の ばしょ から。かいた せん と とった もの を おぼえる
+    [T.x, T.y, T.h] = quiz.P.start;
+    T.segs = [];
+    if (quiz.P.items){ quiz.got = quiz.P.items.map(() => false); T.quiz = quiz; }
+  }
   clearHl();
 }
 function redrawInstant(){
   if (!drawP) return;
   stopRunner(false);
+  hideCele();
+  drawBg();
   resetStage();
   const msg = runInstant(topList(), T);
   if (msg) say(msg);
   synced = true;
   paintTurtle();
+  checkQuiz(false);
 }
-function startRun(from, fresh){
+function startRun(from, fresh, explicit){
   if (!drawP) return;
   stopRunner(false);
+  hideCele();
   if (fresh) resetStage();
   const list = topList();
-  runner = {gen:runList(list, from, T, true, 0, true), list};
+  runner = {gen:runList(list, from, T, true, 0, true), list, explicit:!!explicit};
   synced = false;
   setRunning(true);
   if (!raf) raf = requestAnimationFrame(tick);
@@ -1067,7 +1181,7 @@ function tick(){
   try {
     for (;;){
       const r = runner.gen.next();
-      if (r.done){ finishRun(true); break; }
+      if (r.done){ const ex = runner.explicit; finishRun(true); checkQuiz(ex); break; }
       const ev = r.value;
       if (ev === FRAME){ if (++frames >= sp.steps) break; }
       else if (ev.hl != null) highlight(ev.hl);
@@ -1107,6 +1221,15 @@ function paintTurtle(){
   const P = topP, g = P.g, w = P.cv.width, hh = P.cv.height;
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, w, hh);
   if (!T) return;
+  if (quizActive() && quiz.P.items && quiz.got){
+    quiz.P.items.forEach((it, k) => {
+      if (quiz.got[k]) return;
+      const [ix, iy] = toDev(P, it[0], it[1]);
+      g.fillStyle = 'rgba(255,216,74,.3)';
+      g.beginPath(); g.arc(ix, iy, GOT_R * P.s * P.dpr, 0, Math.PI * 2); g.fill();
+      drawEmoji(g, it[2], ix, iy, Math.max(22, 34 * P.s) * P.dpr);
+    });
+  }
   if (T.partial){
     const [a, b] = toDev(P, T.partial.x0, T.partial.y0), [c, d] = toDev(P, T.x, T.y);
     g.strokeStyle = T.partial.css; g.lineWidth = Math.max(1, T.width * P.s * P.dpr); g.lineCap = 'round';
@@ -1143,11 +1266,16 @@ function paintTurtle(){
   $('pos').textContent = `よこ ${Math.round(T.x)}　たて ${Math.round(T.y)}　むき ${Math.round(((T.h % 360) + 360) % 360)}°${inside ? '' : '　（かめさんは えの そと）'}`;
 }
 function drawBg(){
+  if (!bgP) return;
   const P = bgP, g = P.g, w = P.cv.width, hh = P.cv.height;
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, hh);
   $('scale').hidden = !grid;
-  if (!grid) return;
+  if (grid) drawGrid(P);
+  if (quizActive()) drawGhost(P, quiz.P, quizTarget(quiz.P));
+}
+function drawGrid(P){
+  const g = P.g, w = P.cv.width, hh = P.cv.height;
   const step = 50 * P.s * P.dpr, cx = w / 2, cy = hh / 2, lw = Math.max(1, Math.round(P.dpr));
   g.lineWidth = lw; g.strokeStyle = '#e6edf6'; g.beginPath();
   for (let x = cx % step; x < w; x += step){ const X = Math.round(x) + lw / 2; g.moveTo(X, 0); g.lineTo(X, hh); }
@@ -1303,6 +1431,7 @@ function renderProg(){
   for (const [id, k] of repK) repBadge(id, k);
   applyHl(false);
   if (curHl == null && curNode) ensureVisible(curNode);
+  renderMission();
 }
 function renderHead(){
   const hd = $('codeHead');
@@ -1324,7 +1453,7 @@ function renderHead(){
         <button type="button" class="btn stop" data-stop>${ICON.stop}とめる</button>
       </div>`;
   }
-  $('runB').onclick = () => { ac(); startRun(0, true); };
+  $('runB').onclick = () => { ac(); startRun(0, true, true); };
   hd.querySelector('[data-stop]').onclick = () => stopRunner(true);
   setRunning(running);
 }
@@ -1529,10 +1658,14 @@ function setVal(v){
 }
 function newProgram(){
   pushUndo();
-  if (editing) prog.words[editing] = []; else prog.main = [];
-  cursor = {key:'top', index:0}; selId = null; kp = null;
+  if (editing) prog.words[editing] = [];
+  else if (quiz) prog.main = quiz.P.given ? parse(quiz.P.given).main : [];
+  else prog.main = [];
+  cursor = {key:'top', index:prog.main.length}; selId = null; kp = null;
+  if (editing) cursor.index = 0;
   renderAll(); save(); redrawInstant();
-  say('あたらしく はじめよう！ したの ボタンを おしてね（「もどす」で もとに もどせるよ）', 3600);
+  say(quiz && !editing ? 'さいしょから やりなおそう（「もどす」で もとに もどせるよ）'
+    : 'あたらしく はじめよう！ したの ボタンを おしてね（「もどす」で もとに もどせるよ）', 3600);
 }
 function loadProgram(parsed, merge, animate){
   stopRunner(false);
@@ -1684,9 +1817,265 @@ $('srcApply').onclick = () => {
   loadProgram(parsed, false, false);
 };
 
+/* ================= もんだい モード =================
+   🍎 を あつめる もんだい と、うすい きいろ の せん を なぞる もんだい。
+   なぞる もんだい は、かめ が かいた せん と こたえ の せん を くらべて しらべる。 */
+const QUIZ_CH = {g:'🍎を あつめよう', d:'せんを なぞろう', r:'くりかえしで かこう', b:'まちがいを なおそう'};
+const QUIZ = [
+  {id:'g1', kind:'goal', title:'りんごまで いこう', start:[0, -120, 0], items:[[0, 80, '🍎']],
+   ask:'かめさんを 🍎の ところまで うごかそう', hint:'「まえへ」を おしてから、みぎしたで かずを 200 に してみよう', best:1, ok:2},
+  {id:'g2', kind:'goal', title:'みぎに まがろう', start:[-100, -40, 0], items:[[100, -40, '🍓']],
+   ask:'🍓は かめさんの みぎがわに あるよ', hint:'「みぎへ 90」で みぎを むいてから「まえへ」', best:2, ok:3},
+  {id:'g3', kind:'goal', title:'2こ あつめよう', start:[-100, -100, 0], items:[[-100, 50, '🍎'], [50, 50, '🍙']],
+   ask:'🍎と 🍙を どちらも あつめよう', hint:'まえへ 150 → みぎへ 90 → まえへ 150', best:3, ok:4},
+  {id:'g4', kind:'goal', title:'ぐるっと あつめよう', start:[-100, -100, 0], items:[[-100, 100, '🍎'], [100, 100, '🍓'], [100, -100, '🍌']],
+   ask:'3こ ぜんぶ あつめよう', hint:'「まえへ 200」と「みぎへ 90」の くりかえし。「くりかえす 3」を つかうと ★★★', best:3, ok:5},
+  {id:'g5', kind:'goal', title:'ひだりにも まがろう', start:[-100, -100, 0], items:[[-100, 0, '🍎'], [0, 0, '🍙'], [0, 100, '🍓'], [100, 100, '⭐']],
+   ask:'かいだんみたいに すすんで ぜんぶ あつめよう', hint:'まえへ 100 → みぎへ 90 → まえへ 100 → ひだりへ 90 → …', best:5, ok:7},
+  {id:'d1', kind:'draw', title:'まっすぐ せん', start:[0, -100, 0], ans:'まえへ 200',
+   ask:'うすい きいろの せんを なぞろう', hint:'「まえへ」で かずは 200', best:1, ok:2},
+  {id:'d2', kind:'draw', title:'かどの ある せん', start:[-80, -80, 0], ans:'まえへ 160 みぎへ 90 まえへ 160',
+   ask:'まがる ところも なぞろう', hint:'まえへ 160 → みぎへ 90 → まえへ 160', best:3, ok:4},
+  {id:'d3', kind:'draw', title:'ななめの せん', start:[-70, -70, 0], ans:'みぎへ 45 まえへ 200',
+   ask:'ななめの せんを なぞろう', hint:'「みぎへ 45」で ななめを むくよ', best:2, ok:3},
+  {id:'d4', kind:'draw', title:'とびとび せん', start:[0, -120, 0], ans:'くりかえす 4 [ まえへ 30 ぺんを あげる まえへ 30 ぺんを おろす ]',
+   ask:'すきまは かかないで すすもう', hint:'「ぺんを あげる」と かかずに すすめるよ。「ぺんを おろす」で また かける', best:5, ok:13},
+  {id:'r1', kind:'draw', title:'しかく', start:[-80, -80, 0], ans:'くりかえす 4 [ まえへ 160 みぎへ 90 ]',
+   ask:'しかくを かこう。「くりかえす」を つかうと みじかく かけるよ', hint:'「まえへ 160」と「みぎへ 90」を 4かい', best:3, ok:8},
+  {id:'r2', kind:'draw', title:'さんかく', start:[-90, -78, 30], ans:'くりかえす 3 [ まえへ 180 みぎへ 120 ]',
+   ask:'さんかくを かこう', hint:'さんかくの かどは「みぎへ 120」だよ', best:3, ok:6},
+  {id:'r3', kind:'draw', title:'ながしかく', start:[-120, -60, 0], ans:'くりかえす 2 [ まえへ 120 みぎへ 90 まえへ 240 みぎへ 90 ]',
+   ask:'よこに ながい しかくを かこう', hint:'たて 120 と よこ 240。くりかえすは 2かいで いいよ', best:5, ok:8},
+  {id:'r4', kind:'draw', title:'ろっかくけい', start:[-87, -50, 0], ans:'くりかえす 6 [ まえへ 100 みぎへ 60 ]',
+   ask:'かどが 6つ ある かたちを かこう', hint:'6かい まがって ひとまわり。360 ÷ 6 = 60 だから「みぎへ 60」', best:3, ok:12},
+  {id:'r5', kind:'draw', title:'ほし', start:[-56, -86, 18], ans:'くりかえす 5 [ まえへ 180 みぎへ 144 ]',
+   ask:'ほしを かこう', hint:'「まえへ 180」と「みぎへ 144」を 5かい', best:3, ok:10},
+  {id:'r6', kind:'draw', title:'まど', start:[0, 0, 0], ans:'くりかえす 4 [ くりかえす 4 [ まえへ 90 みぎへ 90 ] みぎへ 90 ]',
+   ask:'しかくを 4つ くっつけて まどを かこう', hint:'しかくを 1つ かいたら「みぎへ 90」。それを 4かい（くりかえすの なかに くりかえす）', best:5, ok:9},
+  {id:'r7', kind:'draw', title:'はな', start:[0, 0, 0], ans:'くりかえす 8 [ くりかえす 4 [ まえへ 80 みぎへ 90 ] みぎへ 45 ]',
+   ask:'しかくを まわして はなを かこう', hint:'「まど」と にているよ。こんどは「みぎへ 45」で 8かい', best:5, ok:10},
+  {id:'b1', kind:'draw', title:'しかくに ならない', start:[-80, -80, 0], ans:'くりかえす 4 [ まえへ 160 みぎへ 90 ]',
+   given:'くりかえす 4 [\n  まえへ 160\n  みぎへ 60\n]',
+   ask:'かめさんの プログラムが まちがっているよ。なおして しかくに しよう', hint:'まがる かくどを よく みてみよう。しかくの かどは 90', best:3, ok:3},
+  {id:'b2', kind:'draw', title:'かいだんに ならない', start:[-90, -90, 0], ans:'くりかえす 3 [ まえへ 60 みぎへ 90 まえへ 60 ひだりへ 90 ]',
+   given:'くりかえす 3 [\n  まえへ 60\n  みぎへ 90\n  まえへ 60\n]',
+   ask:'めいれいが 1つ たりないよ。たして かいだんに しよう', hint:'[ ] の なかの 2つめの「まえへ 60」を おしてから「ひだりへ」を おすと、その したに はいるよ', best:5, ok:5},
+  {id:'b3', kind:'draw', title:'とがりが たりない', start:[-56, -86, 18], ans:'くりかえす 5 [ まえへ 180 みぎへ 144 ]',
+   given:'くりかえす 4 [\n  まえへ 180\n  みぎへ 144\n]',
+   ask:'ほしの とがった ところが 1つ たりないよ', hint:'「くりかえす」の かずを かえてみよう', best:3, ok:3},
+];
+const QUIZ_LS = 'kameLogo.quiz.v1';
+const GOT_R = 24;     // これ より ちかく を とおれば とれる
+let quiz = null;      // {i, P, got, solved, lastStars, freeMain, freeUndo}
+let quizStars = {};
+try { quizStars = JSON.parse(localStorage.getItem(QUIZ_LS) || '{}') || {}; } catch (e) { quizStars = {}; }
+function quizActive(){ return !!quiz && !editing; }
+
+function segDist(px, py, s){
+  const dx = s[2] - s[0], dy = s[3] - s[1], L2 = dx * dx + dy * dy;
+  const t = L2 ? clamp(((px - s[0]) * dx + (py - s[1]) * dy) / L2, 0, 1) : 0;
+  return Math.hypot(px - (s[0] + t * dx), py - (s[1] + t * dy));
+}
+/* a の せん の うえ の てん が ぜんぶ、b の どれか の せん の すぐ ちかく に あるか */
+function covers(a, b, tol){
+  for (const s of a){
+    const n = Math.max(1, Math.ceil(Math.hypot(s[2] - s[0], s[3] - s[1]) / 4));
+    for (let k = 0; k <= n; k++){
+      const px = s[0] + (s[2] - s[0]) * k / n, py = s[1] + (s[3] - s[1]) * k / n;
+      if (!b.some((t) => segDist(px, py, t) <= tol)) return false;
+    }
+  }
+  return true;
+}
+function quizTarget(P){
+  if (P.kind !== 'draw') return [];
+  if (!P._t){
+    const TT = newTurtle(makePainter(document.createElement('canvas'), 8, 8, 1), {});
+    [TT.x, TT.y, TT.h] = P.start;
+    TT.segs = [];
+    runInstant(parse(P.ans).main, TT);
+    P._t = TT.segs;
+  }
+  return P._t;
+}
+function visit(T, x0, y0, x1, y1, anim){
+  const q = T.quiz;
+  q.P.items.forEach((it, k) => {
+    if (q.got[k] || segDist(it[0], it[1], [x0, y0, x1, y1]) > GOT_R) return;
+    q.got[k] = true;
+    if (anim) playNote('たかいど');
+  });
+}
+/* めいれい の かず（つかった ことば の なかみ も 1かい だけ かぞえる）*/
+function countCmds(){
+  const seen = new Set();
+  let n = 0;
+  const walk = (list) => {
+    for (const x of list){
+      n++;
+      if (x.t === 'repeat') walk(x.body);
+      else if (x.t === 'call' && prog.words[x.name] && !seen.has(x.name)){ seen.add(x.name); walk(prog.words[x.name]); }
+    }
+  };
+  walk(prog.main);
+  return n;
+}
+const starsFor = (P, n) => n <= P.best ? 3 : n <= P.ok ? 2 : 1;
+const starHTML = (k) => `<span class="stars" aria-label="ほし ${k}こ">${[1, 2, 3].map((i) => `<span class="${i <= k ? 'on' : 'off'}">★</span>`).join('')}</span>`;
+function drawGhost(P, prob, segs){
+  const g = P.g;
+  g.save(); g.setTransform(1, 0, 0, 1, 0, 0);
+  g.lineCap = 'round'; g.lineJoin = 'round';
+  if (segs.length){
+    const path = () => {
+      g.beginPath();
+      for (const t of segs){ const [a, b] = toDev(P, t[0], t[1]), [c, d] = toDev(P, t[2], t[3]); g.moveTo(a, b); g.lineTo(c, d); }
+    };
+    path(); g.strokeStyle = '#fff0b3'; g.lineWidth = Math.max(6, 16 * P.s) * P.dpr; g.stroke();
+    path(); g.strokeStyle = '#e2b33a'; g.lineWidth = Math.max(1, 1.6 * P.dpr);
+    g.setLineDash([6 * P.dpr, 6 * P.dpr]); g.stroke(); g.setLineDash([]);
+  }
+  const [sx, sy] = toDev(P, prob.start[0], prob.start[1]);
+  g.strokeStyle = '#7cc88d'; g.lineWidth = 2 * P.dpr; g.setLineDash([4 * P.dpr, 4 * P.dpr]);
+  g.beginPath(); g.arc(sx, sy, Math.max(9, 24 * P.s) * P.dpr, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+  g.restore();
+}
+function drawQuizThumb(cv, P, size){
+  const PP = makePainter(cv, size, size, 2);
+  const segs = quizTarget(P);
+  const xs = [P.start[0]], ys = [P.start[1]];
+  for (const t of segs){ xs.push(t[0], t[2]); ys.push(t[1], t[3]); }
+  for (const it of P.items || []){ xs.push(it[0]); ys.push(it[1]); }
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), pad = 36;
+  PP.s = size / Math.max(x1 - x0 + pad * 2, y1 - y0 + pad * 2, 170);
+  PP.ox = (x0 + x1) / 2; PP.oy = (y0 + y1) / 2;
+  drawGhost(PP, P, segs);
+  for (const it of P.items || []){ const [ix, iy] = toDev(PP, it[0], it[1]); drawEmoji(PP.g, it[2], ix, iy, Math.max(14, 34 * PP.s) * PP.dpr); }
+  const [sx, sy] = toDev(PP, P.start[0], P.start[1]);
+  drawTurtleShape(PP.g, sx, sy, P.start[2], Math.max(12, 30 * PP.s) * PP.dpr);
+}
+function checkQuiz(explicit){
+  if (!quizActive() || !T) return;
+  const P = quiz.P;
+  let ok = false, why = '';
+  if (P.kind === 'goal'){
+    const left = quiz.got ? quiz.got.filter((x) => !x).length : P.items.length;
+    ok = left === 0;
+    why = `まだ ${left}こ のこっているよ`;
+  } else {
+    const segs = T.segs || [], tg = quizTarget(P);
+    if (!segs.length) why = 'まだ せんを かいていないよ';
+    else if (segs.length > 2000) why = 'せんが おおすぎるよ';
+    else if (!covers(segs, tg, 3)) why = 'きいろい せんの ない ところにも かいちゃったよ' + (P.id === 'd4' ? '。「ぺんを あげる」と かかずに すすめるよ' : '');
+    else if (!covers(tg, segs, 3)) why = 'まだ なぞって いない ところが あるよ';
+    else ok = true;
+  }
+  if (ok){
+    const n = countCmds(), stars = starsFor(P, n);
+    if ((quizStars[P.id] || 0) < stars){
+      quizStars[P.id] = stars;
+      try { localStorage.setItem(QUIZ_LS, JSON.stringify(quizStars)); } catch (e) {}
+    }
+    if (!quiz.solved || explicit) celebrate(stars, n);
+    else if (stars > quiz.lastStars) say(`めいれいが へって ${'★'.repeat(stars)} に なったよ！`);
+    quiz.solved = true; quiz.lastStars = stars;
+  } else {
+    quiz.solved = false;
+    if (explicit) say(why, 3800);
+  }
+  renderMission();
+}
+function celebrate(stars, n){
+  const P = quiz.P;
+  $('celeStars').innerHTML = [1, 2, 3].map((i) => `<span class="${i <= stars ? 'on' : ''}">★</span>`).join('');
+  $('celeTtl').textContent = stars === 3 ? 'かんぺき！' : 'できた！';
+  const usesRepeat = JSON.stringify(prog.main).includes('"repeat"');
+  $('celeMsg').textContent = stars === 3 ? `めいれい ${n}こ で できたよ。すごい！`
+    : `めいれい ${n}こ で できたよ。${P.best}こ で できたら ★★★！`
+      + (!usesRepeat && /くりかえす/.test(P.ans || P.hint) ? '「くりかえす」を つかってみよう' : '');
+  $('celeNext').textContent = quiz.i < QUIZ.length - 1 ? 'つぎの もんだい' : 'もんだいを えらぶ';
+  $('cele').hidden = false;
+  ['ど', 'み', 'そ', 'たかいど'].forEach((nm, k) => playNote(nm, k * 0.12));
+}
+function hideCele(){ $('cele').hidden = true; }
+function renderMission(){
+  const on = !!quiz;
+  $('app').classList.toggle('quiz', on);
+  $('mission').hidden = !on;
+  $('quizBtn').setAttribute('aria-pressed', String(on));
+  for (const id of ['ex', 'pages', 'txt']){
+    $(id).disabled = on;
+    $(id).title = on ? 'もんだいを おわると つかえるよ' : (id === 'txt' ? 'おとなの かた むけ：キーボードで プログラムを かけます' : '');
+  }
+  if (!on) return;
+  const P = quiz.P, best = quizStars[P.id] || 0;
+  $('mNum').textContent = String(quiz.i + 1);
+  $('mTtl').textContent = P.title;
+  $('mAsk').textContent = editing ? `いまは「${editing}」を おしえているよ。「できた」で もんだいに もどるよ` : P.ask;
+  $('mCount').innerHTML = `いまの めいれい <b>${countCmds()}</b>こ（★★★は ${P.best}こ いか）`
+    + (best ? `　さいこう ${starHTML(best)}` : '');
+}
+function startQuiz(i){
+  const P = QUIZ[i];
+  if (!P) return;
+  stopRunner(false); hideCele(); closeModals();
+  if (!quiz) quiz = {freeMain:prog.main, freeUndo:undoStack.splice(0)};   // じゆう に かいた もの は とっておく
+  else undoStack.length = 0;
+  editing = null; mainState = null;
+  Object.assign(quiz, {i, P, got:null, solved:false, lastStars:0});
+  prog.main = P.given ? parse(P.given).main : [];
+  cursor = {key:'top', index:prog.main.length}; selId = null; kp = null; lastUndoTag = null;
+  updateUndo();
+  renderAll(); save();
+  redrawInstant();
+  say(P.ask, 4200);
+}
+function exitQuiz(){
+  if (!quiz) return;
+  stopRunner(false); hideCele();
+  editing = null; mainState = null;
+  prog.main = quiz.freeMain;
+  undoStack.splice(0, undoStack.length, ...quiz.freeUndo);
+  quiz = null;
+  cursor = {key:'top', index:prog.main.length}; selId = null; kp = null; lastUndoTag = null;
+  updateUndo();
+  renderAll(); save();
+  redrawInstant();
+  say('じゆうに かく モードに もどったよ');
+}
+function openQuizList(){
+  const box = $('quizList');
+  box.innerHTML = '';
+  openModal('mQuiz');
+  const nextI = QUIZ.findIndex((P) => !quizStars[P.id]);
+  let ch = null, cards = null;
+  QUIZ.forEach((P, i) => {
+    if (P.id[0] !== ch){
+      ch = P.id[0];
+      box.append(h('h3', 'chap', QUIZ_CH[ch]));
+      cards = h('div', 'cards');
+      box.append(cards);
+    }
+    const c = h('button', 'card' + (i === nextI ? ' next' : ''));
+    c.type = 'button';
+    const cv = document.createElement('canvas');
+    c.append(h('div', 'qtop', `<span class="qn">${i + 1}</span>${starHTML(quizStars[P.id] || 0)}`), cv, h('div', '', esc(P.title)));
+    if (i === nextI) c.append(h('div', 'sub', 'つぎは これ！'));
+    c.onclick = () => startQuiz(i);
+    cards.append(c);
+    drawQuizThumb(cv, P, 150);
+  });
+  const sheet = box.closest('.sheet');
+  sheet.scrollTop = 0;
+  const nx = box.querySelector('.card.next');
+  if (nx) nx.scrollIntoView({block:'nearest'});
+}
+
 /* ================= ほぞん ================= */
 function save(){
-  try { localStorage.setItem(LS, JSON.stringify({src:toSource(prog), speed, grid})); } catch (e) {}
+  // もんだい を といている あいだ も、じゆう に かいた プログラム の ほう を のこす
+  const main = quiz ? quiz.freeMain : prog.main;
+  try { localStorage.setItem(LS, JSON.stringify({src:toSource({main, words:prog.words}), speed, grid})); } catch (e) {}
 }
 const STARTER = 'いろ にじ\nふとさ 4\nくりかえす 8 [\n  くりかえす 4 [\n    まえへ 100\n    みぎへ 90\n  ]\n  みぎへ 45\n]';
 
@@ -1703,6 +2092,17 @@ function boot(){
   $('grid').innerHTML = `${ICON.grid}<span class="t">ますめ</span>`;
   $('txt').innerHTML = `${ICON.kb}<span class="t">もじで かく</span>`;
   $('txt').setAttribute('aria-label', 'もじで かく');
+  $('grid').setAttribute('aria-label', 'ますめ');
+  $('quizBtn').innerHTML = `${ICON.flag}<span class="t">もんだい</span>`;
+  $('quizBtn').onclick = openQuizList;
+  $('mHint').onclick = () => { if (quiz) say(quiz.P.hint, 5600); };
+  $('mPick').onclick = openQuizList;
+  $('mQuit').onclick = exitQuiz;
+  $('celeStay').onclick = hideCele;
+  $('celeNext').onclick = () => {
+    if (quiz && quiz.i < QUIZ.length - 1) startQuiz(quiz.i + 1);
+    else { hideCele(); openQuizList(); }
+  };
   $('undo').onclick = undo;
   $('new').onclick = newProgram;
   $('ex').onclick = openExamples;
