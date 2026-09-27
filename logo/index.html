@@ -245,6 +245,16 @@
     background:rgba(255,255,255,.14); color:#fff;
   }
   .ln .del svg{width:16px; height:16px;}
+  /* ドラッグ で ならびかえ：マウス は ぎょう の どこでも、タッチ は ひだり の いろ の しるし を つかむ */
+  .ln[data-role]{cursor:grab;}
+  .ln .dot{touch-action:none;}
+  .ln.dragging, .blk.dragging{opacity:.3;}
+  .dragghost{position:fixed; left:0; top:0; z-index:60; pointer-events:none; opacity:.93; will-change:transform;}
+  .dragghost.gl-line{max-width:320px; border-radius:10px; background:var(--navy); color:#fff; font-size:19px; font-weight:700; line-height:1.2; box-shadow:0 12px 28px rgba(14,24,56,.35);}
+  .dragghost.gl-line .ln{background:none; box-shadow:none;}
+  .dragghost .cmd{box-shadow:0 12px 28px rgba(14,24,56,.35);}
+  #dropBar{position:fixed; z-index:59; height:5px; border-radius:3px; background:#ff9f1c; box-shadow:0 0 0 3px rgba(255,159,28,.3); pointer-events:none;}
+  body.dragging, body.dragging *{cursor:grabbing !important;}
   .ln.now .del{background:rgba(31,47,107,.15); color:var(--navy);}
   .ln.sel .del, .ln:hover .del{display:grid;}
   .ln.ftr{min-height:30px;}
@@ -309,7 +319,17 @@
   .wthumb canvas{width:72px; height:72px; border-radius:10px; background:#fff; box-shadow:inset 0 0 0 2px var(--soft-2); flex:none;}
 
   /* ===== めいれい ボタン（した）===== */
-  #pal{grid-area:pal; display:flex; flex-wrap:wrap; gap:8px 10px; align-items:stretch;}
+  #pal{grid-area:pal; position:relative; display:flex; flex-wrap:wrap; gap:8px 10px; align-items:stretch;}
+  #pal.trash::after{
+    content:"ここに もってくると けせるよ";
+    position:absolute; inset:-4px; z-index:3;
+    display:grid; place-items:center;
+    border:3px dashed var(--stop); border-radius:16px;
+    background:rgba(255,238,238,.9); color:#b3262c;
+    font-size:20px; font-weight:900;
+    pointer-events:none;
+  }
+  #pal.trash.hot::after{content:"はなすと けすよ"; background:rgba(255,208,208,.96);}
   .grp{display:flex; align-items:stretch; gap:5px; padding:5px 6px 7px 4px; border-radius:14px; background:rgba(255,255,255,.5);}
   .grp .gl{
     writing-mode:vertical-rl;
@@ -329,7 +349,8 @@
   .cmd svg{width:22px; height:22px; flex:none;}
   .cmd .e{font-size:20px; line-height:1;}
   .cmd:active{transform:translateY(3px); box-shadow:0 1px 0 var(--gd);}
-  .cmd.new{background:#fff; color:var(--word); box-shadow:0 4px 0 rgba(98,54,207,.35); outline:2px dashed var(--word); outline-offset:-4px;}
+  .cmd{touch-action:none;}          /* ボタン を そのまま めいれい の ところ へ ドラッグ できる */
+  .cmd.new{touch-action:manipulation; background:#fff; color:var(--word); box-shadow:0 4px 0 rgba(98,54,207,.35); outline:2px dashed var(--word); outline-offset:-4px;}
 
   /* ===== ダイアログ ===== */
   .modal{position:fixed; inset:0; z-index:50; display:grid; place-items:center; padding:16px; background:rgba(14,24,56,.46);}
@@ -401,6 +422,7 @@
     .seg button{padding:4px 8px;}
   }
   @media (max-width:640px){
+    .cmd{touch-action:manipulation;}  /* スマホ は ページ の スクロール を ゆうせん */
     #app{height:auto; min-height:100%; grid-template-rows:auto auto auto auto;}
     #app.quiz{grid-template-rows:auto auto auto auto auto;}
     #stage{aspect-ratio:1/1; max-height:75vh;}
@@ -451,7 +473,6 @@
     <div class="tb">
       <button type="button" class="btn qz" id="quizBtn" aria-pressed="false"></button>
       <button type="button" class="btn" id="undo"></button>
-      <button type="button" class="btn" id="new"></button>
       <button type="button" class="btn" id="ex"></button>
       <button type="button" class="btn" id="pages"></button>
       <button type="button" class="btn toggle" id="grid" aria-pressed="true"></button>
@@ -693,6 +714,7 @@ const ICON = {
   check: S('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
   flag: S('<path d="M5 21V4"/><path d="M5 4.5h12l-2.5 4 2.5 4H5"/>'),
   pencil: S('<path d="M15 4l5 5-10.5 10.5H4.5v-5z"/>'),
+  trash: S('<path d="M4 7h16"/><path d="M9 7V4.5h6V7"/><path d="M6 7l1 13h10l1-13"/><path d="M10 11v5.5M14 11v5.5"/>'),
 };
 
 /* ================= じょうたい ================= */
@@ -1379,6 +1401,13 @@ function lineEl(n, key, i){
     selId = n.id; kp = null;
     if (n.t === 'repeat') setCursor(n.id, n.body.length); else setCursor(key, i + 1);
   };
+  d.dataset.role = n.t === 'repeat' ? 'hdr' : 'line';
+  d.dataset.key = key; d.dataset.i = i; d.dataset.id = n.id;
+  d.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.del')) return;
+    if (e.pointerType !== 'mouse' && !e.target.closest('.dot')) return;
+    dragBegin(e, {kind:'line', id:n.id, src:d});
+  });
   lineEls.set(n.id, d);
   return d;
 }
@@ -1400,6 +1429,7 @@ function renderList(list, key, parent, depth){
     const ph = h('div', 'ph', depth ? 'ここに いれる めいれいを したから えらんでね'
       : editing ? `したの ボタンで「${esc(editing)}」の かきかたを おしえてね` : 'したの ボタンを おすと めいれいが ここに はいるよ');
     ph.onclick = () => setCursor(key, 0);
+    ph.dataset.role = 'ph'; ph.dataset.key = key;
     parent.append(ph);
     return;
   }
@@ -1412,6 +1442,7 @@ function renderList(list, key, parent, depth){
       parent.append(blk);
       const ft = h('div', 'ln ftr', '<span class="brk">]</span>');
       ft.onclick = () => { selId = n.id; kp = null; setCursor(key, i + 1); };
+      ft.dataset.role = 'ftr'; ft.dataset.key = key; ft.dataset.i = i; ft.dataset.id = n.id;
       parent.append(ft);
     }
   });
@@ -1423,9 +1454,9 @@ function renderProg(){
   const keep = box.scrollTop;
   box.innerHTML = ''; lineEls = new Map(); curNode = null;
   const frag = document.createDocumentFragment();
-  if (editing) frag.append(h('div', 'fixed', `おしえる ${esc(editing)}`));
+  if (editing){ const f0 = h('div', 'fixed', `おしえる ${esc(editing)}`); f0.dataset.role = 'first'; frag.append(f0); }
   renderList(topList(), 'top', frag, 0);
-  if (editing) frag.append(h('div', 'fixed', 'おわり'));
+  if (editing){ const f1 = h('div', 'fixed', 'おわり'); f1.dataset.role = 'last'; frag.append(f1); }
   box.append(frag);
   box.scrollTop = keep;
   for (const [id, k] of repK) repBadge(id, k);
@@ -1442,6 +1473,7 @@ function renderHead(){
         <button type="button" class="btn go" id="runB">${ICON.run}ためす</button>
         <button type="button" class="btn stop" data-stop aria-label="とめる">${ICON.stop}</button>
         <button type="button" class="btn" id="doneB">${ICON.check}できた</button>
+        <button type="button" class="btn ghost" id="clearB">${ICON.trash}ぜんぶ けす</button>
         <button type="button" class="btn ghost" id="forgetB">わすれる</button>
       </div>`;
     $('doneB').onclick = doneWord;
@@ -1451,8 +1483,10 @@ function renderHead(){
       <div class="row">
         <button type="button" class="btn go" id="runB">${ICON.run}うごかす</button>
         <button type="button" class="btn stop" data-stop>${ICON.stop}とめる</button>
+        <button type="button" class="btn ghost" id="clearB">${ICON.trash}${quiz && quiz.P.given ? 'さいしょに もどす' : 'ぜんぶ けす'}</button>
       </div>`;
   }
+  $('clearB').onclick = newProgram;
   $('runB').onclick = () => { ac(); startRun(0, true, true); };
   hd.querySelector('[data-stop]').onclick = () => stopRunner(true);
   setRunning(running);
@@ -1466,21 +1500,24 @@ function renderPalette(){
     g.style.cssText = `--gc:${c.c};--gd:${c.d};--gt:${c.t}`;
     g.append(h('div', 'gl', G.label));
     const its = h('div', 'its');
-    const btn = (html, fn, cls) => { const b = h('button', 'cmd' + (cls ? ' ' + cls : ''), html); b.type = 'button'; b.onclick = fn; its.append(b); };
+    // make が ある ボタン は、おす と いれる／ドラッグ で すきな ばしょ に いれる
+    const btn = (html, cls, make, fn) => {
+      const b = h('button', 'cmd' + (cls ? ' ' + cls : ''), html);
+      b.type = 'button';
+      b.onclick = fn || (() => addNode(make()));
+      if (make) b.addEventListener('pointerdown', (e) => dragBegin(e, {kind:'pal', src:b, make}));
+      its.append(b);
+    };
     if (G.cat === 'word'){
       for (const name of Object.keys(prog.words)){
         if (name === editing) continue;
-        btn(`<span class="e">${wordIcon(name)}</span><span>${esc(name)}</span>`, () => addNode({t:'call', name}));
+        btn(`<span class="e">${wordIcon(name)}</span><span>${esc(name)}</span>`, '', () => ({t:'call', name}));
       }
-      btn(`${ICON.plus}<span>ことばを<br>おしえる</span>`, openWordDialog, 'new');
+      btn(`${ICON.plus}<span>ことばを<br>おしえる</span>`, 'new', null, openWordDialog);
     } else {
       for (const t of G.items){
         const s = CMD[t];
-        btn(`${ICON[t]}<span>${s.w.join('<br>')}</span>`, () => {
-          const n = {t};
-          if (s.arg) n.v = s.def;
-          addNode(n);
-        });
+        btn(`${ICON[t]}<span>${s.w.join('<br>')}</span>`, '', () => (s.arg ? {t, v:s.def} : {t}));
       }
     }
     g.append(its);
@@ -1510,7 +1547,8 @@ function renderPicker(){
     box.innerHTML = `<div class="q">あそびかた</div>
       <ol class="guide"><li>したの ボタンを おすと めいれいが はいるよ</li>
       <li>めいれいを おすと、ここで かずや いろを かえられるよ</li>
-      <li>「うごかす」で かめさんが さいしょから うごくよ</li></ol>`;
+      <li>「うごかす」で かめさんが さいしょから うごくよ</li>
+      <li>めいれいは ドラッグで ならびかえられるよ。したの ボタンの ところに もっていくと けせるよ</li></ol>`;
     return;
   }
   const n = f.node;
@@ -1622,10 +1660,11 @@ function goOut(){
   selId = f.node.id; kp = null;
   setCursor(f.key, f.index + 1);
 }
-function addNode(n){
+function addNode(n, at){
   ac();
   n.id = nid++;
   if (n.t === 'repeat') n.body = [];
+  if (at) cursor = {key:at.key, index:at.index};   // ドラッグ で おとした ばしょ
   fixCursor();
   const list = listByKey(cursor.key);
   pushUndo();
@@ -1657,6 +1696,7 @@ function setVal(v){
   redrawInstant();
 }
 function newProgram(){
+  if (!topList().length && !(quiz && !editing && quiz.P.given)){ say('めいれいは もう からっぽだよ'); return; }
   pushUndo();
   if (editing) prog.words[editing] = [];
   else if (quiz) prog.main = quiz.P.given ? parse(quiz.P.given).main : [];
@@ -1665,8 +1705,167 @@ function newProgram(){
   if (editing) cursor.index = 0;
   renderAll(); save(); redrawInstant();
   say(quiz && !editing ? 'さいしょから やりなおそう（「もどす」で もとに もどせるよ）'
-    : 'あたらしく はじめよう！ したの ボタンを おしてね（「もどす」で もとに もどせるよ）', 3600);
+    : 'めいれいを ぜんぶ けしたよ（「もどす」で もとに もどせるよ）', 3600);
 }
+/* ドラッグ で ならびかえ：id の めいれい を key の ならび の index ばんめ へ */
+function moveNode(id, key, index){
+  const f = findNode(id), dest = listByKey(key);
+  if (!f || !dest) return;
+  if (key !== 'top' && contains(f.node, key)) return;   // じぶん の なか には いれない
+  let idx = index;
+  if (f.list === dest && f.index < idx) idx--;
+  if (f.list === dest && idx === f.index) return;
+  pushUndo();
+  f.list.splice(f.index, 1);
+  dest.splice(idx, 0, f.node);
+  selId = id; kp = null;
+  cursor = {key, index:idx + 1};
+  renderProg(); renderPicker(); save();
+  redrawInstant();
+}
+
+/* ================= ドラッグ ＆ ドロップ =================
+   pointer イベント で じぶんで うごかす（マウス でも iPad の ゆび でも おなじ）。
+   すこし うごかす まで は ふつう の クリック あつかい。 */
+let drag = null;
+let suppressClick = false;
+document.addEventListener('click', (e) => {
+  if (suppressClick){ e.stopPropagation(); e.preventDefault(); }
+}, true);
+function dragBegin(e, info){
+  if (drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+  drag = Object.assign({x0:e.clientX, y0:e.clientY, x:e.clientX, y:e.clientY, pid:e.pointerId,
+    touch:e.pointerType !== 'mouse', started:false, target:null, trash:false}, info);
+  window.addEventListener('pointermove', dragMove, {passive:false});
+  window.addEventListener('pointerup', dragEnd);
+  window.addEventListener('pointercancel', dragCancel);
+}
+function dragMove(e){
+  if (!drag || e.pointerId !== drag.pid) return;
+  drag.x = e.clientX; drag.y = e.clientY;
+  if (!drag.started){
+    if (Math.hypot(drag.x - drag.x0, drag.y - drag.y0) < (drag.touch ? 10 : 6)) return;
+    dragStartVisual();
+  }
+  e.preventDefault();
+  drag.ghost.style.transform = `translate(${drag.x - drag.offX}px, ${drag.y - drag.offY}px) rotate(-2deg)`;
+  updateDrop();
+}
+function dragStartVisual(){
+  drag.started = true;
+  const src = drag.src, r = src.getBoundingClientRect();
+  const g = h('div', 'dragghost ' + (drag.kind === 'line' ? 'gl-line' : 'gl-pal'));
+  const clone = src.cloneNode(true);
+  clone.classList.remove('sel', 'now', 'dragging');
+  clone.querySelectorAll('.del').forEach((x) => x.remove());
+  if (drag.kind === 'pal') g.style.cssText = src.closest('.grp').style.cssText;
+  else g.style.width = Math.min(r.width, 320) + 'px';
+  g.append(clone);
+  document.body.append(g);
+  drag.ghost = g;
+  drag.offX = clamp(drag.x0 - r.left, 12, 48); drag.offY = clamp(drag.y0 - r.top, 8, 40);   // ゆび の すぐ よこ に でる ように
+  drag.bar = h('div'); drag.bar.id = 'dropBar'; drag.bar.hidden = true;
+  document.body.append(drag.bar);
+  if (drag.kind === 'line'){
+    src.classList.add('dragging');
+    const blk = src.nextElementSibling;
+    if (blk && blk.classList.contains('blk')){ blk.classList.add('dragging'); if (blk.nextElementSibling) blk.nextElementSibling.classList.add('dragging'); }
+    $('pal').classList.add('trash');
+  }
+  document.body.classList.add('dragging');
+  drag.raf = requestAnimationFrame(autoScroll);
+}
+const inRect = (r, x, y) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
+function updateDrop(){
+  const d = drag;
+  d.target = null; d.trash = false;
+  const pal = $('pal');
+  if (d.kind === 'line' && inRect(pal.getBoundingClientRect(), d.x, d.y)){
+    d.trash = true; pal.classList.add('hot'); d.bar.hidden = true;
+    return;
+  }
+  pal.classList.remove('hot');
+  if (!inRect($('code').getBoundingClientRect(), d.x, d.y)){ d.bar.hidden = true; return; }
+  const t = dropTargetAt(d.y);
+  if (!t || !validDrop(t)){ d.bar.hidden = true; return; }
+  d.target = t;
+  const r = t.ref.getBoundingClientRect(), pr = $('prog').getBoundingClientRect();
+  const left = r.left + (t.indent ? 24 : 0);
+  const y = clamp(t.edge === 'top' ? r.top : r.bottom, pr.top + 2, pr.bottom - 2);
+  Object.assign(d.bar.style, {left:left + 'px', top:(y - 2.5) + 'px', width:Math.max(40, r.right - left) + 'px'});
+  d.bar.hidden = false;
+}
+/* ゆび の たかさ に いちばん ちかい ぎょう を さがして、その うえ か した に いれる */
+function dropTargetAt(y){
+  let best = null, bd = Infinity;
+  for (const row of $('prog').querySelectorAll('[data-role]')){
+    const r = row.getBoundingClientRect();
+    const dist = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    if (dist < bd){ bd = dist; best = row; }
+  }
+  if (!best) return {key:'top', index:0, ref:$('prog'), edge:'top'};
+  const r = best.getBoundingClientRect(), upper = y < r.top + r.height / 2;
+  const role = best.dataset.role;
+  const key = best.dataset.key === 'top' ? 'top' : +best.dataset.key;
+  const i = +best.dataset.i, id = +best.dataset.id;
+  switch (role){
+    case 'first': return {key:'top', index:0, ref:best, edge:'bottom'};
+    case 'last':  return {key:'top', index:topList().length, ref:best, edge:'top'};
+    case 'ph':    return {key, index:0, ref:best, edge:'top'};
+    case 'line':  return upper ? {key, index:i, ref:best, edge:'top'} : {key, index:i + 1, ref:best, edge:'bottom'};
+    case 'hdr':   return upper ? {key, index:i, ref:best, edge:'top'} : {key:id, index:0, ref:best, edge:'bottom', indent:true};
+    case 'ftr': {
+      const body = listByKey(id);
+      return upper ? {key:id, index:body ? body.length : 0, ref:best, edge:'top', indent:true} : {key, index:i + 1, ref:best, edge:'bottom'};
+    }
+  }
+  return null;
+}
+function validDrop(t){
+  if (!listByKey(t.key)) return false;
+  if (drag.kind !== 'line') return true;
+  const f = findNode(drag.id);
+  if (!f) return false;
+  if (t.key !== 'top' && contains(f.node, t.key)) return false;
+  return !(t.key === f.key && (t.index === f.index || t.index === f.index + 1));   // うごかない ところ
+}
+function autoScroll(){
+  if (!drag || !drag.started) return;
+  const box = $('prog'), r = box.getBoundingClientRect();
+  if (drag.x >= r.left && drag.x <= r.right){
+    let dy = 0;
+    if (drag.y < r.top + 36 && drag.y > r.top - 80) dy = -Math.ceil((r.top + 36 - drag.y) / 5);
+    else if (drag.y > r.bottom - 36 && drag.y < r.bottom + 80) dy = Math.ceil((drag.y - (r.bottom - 36)) / 5);
+    if (dy){ box.scrollTop += dy; updateDrop(); }
+  }
+  drag.raf = requestAnimationFrame(autoScroll);
+}
+function dragCleanup(){
+  const d = drag;
+  drag = null;
+  window.removeEventListener('pointermove', dragMove);
+  window.removeEventListener('pointerup', dragEnd);
+  window.removeEventListener('pointercancel', dragCancel);
+  if (!d || !d.started) return d;
+  cancelAnimationFrame(d.raf);
+  d.ghost.remove(); d.bar.remove();
+  document.body.classList.remove('dragging');
+  $('pal').classList.remove('trash', 'hot');
+  document.querySelectorAll('#prog .dragging').forEach((x) => x.classList.remove('dragging'));
+  suppressClick = true;
+  setTimeout(() => { suppressClick = false; }, 0);
+  return d;
+}
+function dragEnd(e){
+  if (!drag || e.pointerId !== drag.pid) return;
+  const d = dragCleanup();
+  if (!d.started) return;   // うごかして いない ＝ ふつう の クリック
+  if (d.kind === 'line'){
+    if (d.trash) delNode(d.id);
+    else if (d.target) moveNode(d.id, d.target.key, d.target.index);
+  } else if (d.target) addNode(d.make(), d.target);
+}
+function dragCancel(e){ if (drag && e.pointerId === drag.pid) dragCleanup(); }
 function loadProgram(parsed, merge, animate){
   stopRunner(false);
   pushUndo();
@@ -2086,7 +2285,6 @@ function setSpeed(sp){
 }
 function boot(){
   $('undo').innerHTML = `${ICON.undo}<span class="t">もどす</span>`;
-  $('new').innerHTML = `${ICON.sheet}<span class="t">あたらしく</span>`;
   $('ex').innerHTML = `${ICON.book}<span class="t">おてほん</span>`;
   $('pages').innerHTML = `${ICON.folder}<span class="t">ページ</span>`;
   $('grid').innerHTML = `${ICON.grid}<span class="t">ますめ</span>`;
@@ -2104,7 +2302,6 @@ function boot(){
     else { hideCele(); openQuizList(); }
   };
   $('undo').onclick = undo;
-  $('new').onclick = newProgram;
   $('ex').onclick = openExamples;
   $('pages').onclick = openPages;
   $('txt').onclick = openText;
