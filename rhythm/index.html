@@ -117,7 +117,6 @@
 
   .mini{font-size:16px; padding:9px 16px; border-radius:999px;}
   .mini.ghost{background:rgba(255,255,255,.85);}
-  .mini.tama{align-self:center;}     /* まねっこ の よこ。3だんめ に いれる と おどる こ に かさなる */
 
   #calib{display:flex; align-items:center; gap:8px; font-size:15px;
          background:rgba(0,0,0,.22); padding:6px 10px; border-radius:999px;}
@@ -191,7 +190,6 @@
         <span class="big">まねして ポン</span>
         <span class="best" id="best3">さいこう てん ―</span>
       </button>
-      <button class="mini ghost tama" id="btnTama">🐉 たまりゅう</button>
     </div>
     <div class="menuRow">
       <div id="calib">
@@ -225,7 +223,7 @@
 
 /* このファイルの ばんごう。かえた のに ここが かわらない ときは
    ブラウザ が キャッシュ（ふるい ファイル）を みている。 */
-const VERSION = 'v4';
+const VERSION = 'v5';
 
 const W = 960, H = 540;                 /* ステージ の おおきさ（ろんり） */
 const $ = id => document.getElementById(id);
@@ -1406,11 +1404,6 @@ $('btnMenu').onclick  = () => toMenu();
    ファイル を そのまま ひらいた とき（file://）でも いける ように
    index.html まで かいて おく。 */
 $('btnPiano').onclick = () => { location.href = '../index.html'; };
-/* たまりゅう の ぼうけん は べつ の ゲーム（claude.ai の ページ）。
-   ホーム がめん から ひらいて いる とき も Safari で ひらく ように、あたらしい タブ に する。
-   もちぬし だけ が ひらける ページ なので、Safari で claude.ai に ログイン して いない と ログイン の がめん に なる。 */
-const TAMARYU = 'https://claude.ai/artifact/9WCsnF6GJLWE2st5nQPeR1';
-$('btnTama').onclick = () => { stopAll(); window.open(TAMARYU, '_blank', 'noopener'); };
 
 $('calMinus').onclick = () => { offsetMs = clamp(offsetMs - 10, -200, 200);
                                 store.set('offset', offsetMs); refreshBest(); };
